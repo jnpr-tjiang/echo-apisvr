@@ -19,12 +19,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/jnpr-tjiang/echo-apisvr/pkg/config"
+	"github.com/jnpr-tjiang/echo-apisvr/pkg/database"
+	"github.com/jnpr-tjiang/echo-apisvr/pkg/models"
 	"github.com/spf13/cobra"
 	"gorm.io/datatypes"
-
-	"github.com/jnpr-tjiang/echo-apisvr/internal/config"
-	"github.com/jnpr-tjiang/echo-apisvr/internal/database"
-	"github.com/jnpr-tjiang/echo-apisvr/internal/models"
 )
 
 var cfgFile string
@@ -46,7 +45,9 @@ var rootCmd = &cobra.Command{
 				Payload: datatypes.JSON([]byte(`{"display_name": "default", "system": {"serial": "SN1234", "mac":"ab:34:12:f3"}}`)),
 			},
 		}
-		db.Create(&domain)
+		if err = db.Create(&domain).Error; err != nil {
+			fmt.Printf("Error: %v", err)
+		}
 
 		project := models.Project{
 			Base: models.BaseModel{
@@ -54,7 +55,9 @@ var rootCmd = &cobra.Command{
 				ParentID: domain.Base.ID,
 			},
 		}
-		db.Create(&project)
+		if err = db.Create(&project).Error; err != nil {
+			fmt.Printf("Error: %v", err)
+		}
 
 		id := domain.Base.ID
 		domain = models.Domain{}
@@ -80,7 +83,6 @@ func init() {
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
-
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.echo-apisvr.yaml)")
 
 	// Cobra also supports local flags, which will only run

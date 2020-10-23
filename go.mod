@@ -3,6 +3,7 @@ module github.com/jnpr-tjiang/echo-apisvr
 go 1.15
 
 require (
+	github.com/gertd/go-pluralize v0.1.7
 	github.com/google/uuid v1.1.2
 	github.com/jinzhu/gorm v1.9.16
 	github.com/labstack/echo v3.3.10+incompatible

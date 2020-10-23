@@ -19,15 +19,6 @@ type BaseModel struct {
 	Payload  datatypes.JSON `gorm:"column:payload"`
 }
 
-var (
-	hierarchyMap map[string]string = make(map[string]string)
-	pluralizer   *pluralize.Client = pluralize.NewClient()
-)
-
-func addHierarchy(parent interface{}, child interface{}) {
-	hierarchyMap[utils.TypeOf(child)] = utils.TypeOf(parent)
-}
-
 // GetParentType returns object's parent type name
 func GetParentType(modelObj interface{}) string {
 	return hierarchyMap[utils.TypeOf(modelObj)]
@@ -62,4 +53,13 @@ func (b *BaseModel) preCreate(tx *gorm.DB, obj interface{}) (err error) {
 		b.FQName = fmt.Sprintf(`%s, "%s"]`, parentFQName[:len(parentFQName)-1], b.Name)
 	}
 	return nil
+}
+
+var (
+	hierarchyMap map[string]string = make(map[string]string)
+	pluralizer   *pluralize.Client = pluralize.NewClient()
+)
+
+func addHierarchy(parent interface{}, child interface{}) {
+	hierarchyMap[utils.TypeOf(child)] = utils.TypeOf(parent)
 }
