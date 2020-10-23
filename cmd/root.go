@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"gorm.io/datatypes"
 
@@ -41,25 +40,24 @@ var rootCmd = &cobra.Command{
 			panic(fmt.Sprintf("Failed to initialize the database: %v", err))
 		}
 
-		id := uuid.New()
-		db.Create(&models.Domain{
+		domain := models.Domain{
 			Base: models.BaseModel{
-				ID:      id,
-				Name:    uuid.New().String(),
-				FQName:  uuid.New().String(),
+				Name:    "default",
 				Payload: datatypes.JSON([]byte(`{"display_name": "default", "system": {"serial": "SN1234", "mac":"ab:34:12:f3"}}`)),
 			},
-		})
-
-		var domain models.Domain
-		db.First(&domain, id)
-		fmt.Printf("domain[%s]", domain.Base.Name)
-
-		domain.Base.Name = "Tong"
-		if err := db.Model(&domain).Update("Name", "Tong").Error; err != nil {
-			panic(fmt.Sprintf("Failed to update domain: %v", err))
 		}
+		db.Create(&domain)
 
+		project := models.Project{
+			Base: models.BaseModel{
+				Name:     "juniper",
+				ParentID: domain.Base.ID,
+			},
+		}
+		db.Create(&project)
+
+		id := domain.Base.ID
+		domain = models.Domain{}
 		db.First(&domain, id)
 		fmt.Printf("domain[%s]", domain.Base.Name)
 	},
