@@ -1,0 +1,91 @@
+{
+   "definitions": {
+      "AccessType": {
+         "go_type": "uint64",
+         "maximum": 7,
+         "minimum": 0,
+         "proto_type": "uint64",
+         "type": "uint64",
+         "yang_type": "uint8"
+      },
+      "DateAndTimeType": {
+         "pattern": "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[\\+\\-]\\d{2}:\\d{2})",
+         "type": "string",
+         "yang_type": "string"
+      },
+      "DicOpInfoType": {
+         "description": "Device initiated connection operational info holder.",
+         "properties": {
+            "detected_dic_ip": {
+               "$ref": "root_types.json#/definitions/IpAddressType"
+            },
+            "last_detection_timestamp": {
+               "description": "Last time managemnet ip change detected.",
+               "go_type": "float64",
+               "maximum": 9223372036854.775,
+               "minimum": -9223372036854.775,
+               "proto_type": "double",
+               "type": "number",
+               "yang_type": "decimal64"
+            }
+         },
+         "type": "object"
+      },
+      "IpAddressType": {
+         "go_type": "string",
+         "oneOf": [
+            {
+               "$ref": "root_types.json#/definitions/Ipv4AddressType"
+            },
+            {
+               "$ref": "root_types.json#/definitions/Ipv4AddressMaskType"
+            },
+            {
+               "$ref": "root_types.json#/definitions/Ipv6AddressType"
+            },
+            {
+               "$ref": "root_types.json#/definitions/Ipv6AddressMaskType"
+            }
+         ],
+         "proto_type": "string",
+         "type": "string",
+         "yang_type": "union"
+      },
+      "Ipv4AddressMaskType": {
+         "pattern": "(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/(([0-9])|([1-2][0-9])|(3[0-2]))",
+         "type": "string",
+         "yang_type": "string"
+      },
+      "Ipv4AddressType": {
+         "pattern": "(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)){3}",
+         "type": "string",
+         "yang_type": "string"
+      },
+      "Ipv6AddressMaskType": {
+         "oneOf": [
+            {
+               "pattern": "((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(/(([0-9])|([0-9]{2})|(1[0-1][0-9])|(12[0-8])))"
+            },
+            {
+               "pattern": "((:?[0-9A-Fa-f]{1,4}(:?:[0-9A-Fa-f]{1,4})*)?)::((:?[0-9A-Fa-f]{1,4}(:?:[0-9A-Fa-f]{1,4})*)?)"
+            }
+         ],
+         "type": "string",
+         "yang_type": "string"
+      },
+      "Ipv6AddressType": {
+         "pattern": "(:?[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}",
+         "type": "string",
+         "yang_type": "string"
+      },
+      "UriType": {
+         "type": "string",
+         "yang_type": "string"
+      },
+      "UuidType": {
+         "pattern": "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+         "type": "string",
+         "yang_type": "string"
+      }
+   }
+}

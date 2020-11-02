@@ -2,64 +2,125 @@ package models
 
 import (
 	"fmt"
+	"strings"
 
-	"github.com/gertd/go-pluralize"
 	"github.com/google/uuid"
+	"github.com/jnpr-tjiang/echo-apisvr/pkg/models/custom"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/utils"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
-// BaseModel - base database entity model
-type BaseModel struct {
-	ID       uuid.UUID      `gorm:"column:id;type:uuid;primary_key"`
-	Name     string         `gorm:"column:name;size:128;not null;<-:create"`
-	ParentID uuid.UUID      `gorm:"column:parent_id;type:uuid"`
-	FQName   string         `gorm:"column:fqname;not null;uniqueIndex"`
-	Payload  datatypes.JSON `gorm:"column:payload"`
+type (
+	// BaseModel - base database entity model
+	BaseModel struct {
+		ID          uuid.UUID      `gorm:"column:id;type:uuid;primary_key"`
+		Name        string         `gorm:"column:name;size:128;not null;<-:create"`
+		DisplayName string         `gorm:"column:name;size:128;not null;<-:create"`
+		ParentID    uuid.UUID      `gorm:"column:parent_id;type:uuid"`
+		ParentType  string         `gorm:"column:parent_type`
+		FQName      string         `gorm:"column:fqname;not null;uniqueIndex"`
+		Payload     datatypes.JSON `gorm:"column:payload"`
+	}
+
+	// Entity is base interface for all models
+	Entity interface {
+		BaseModel() *BaseModel
+	}
+
+	modelInfo struct {
+		allowedParentTypes []string
+		constructor        func() Entity
+	}
+)
+
+var (
+	EMPTY_UUID uuid.UUID            = uuid.UUID{}
+	models     map[string]modelInfo = make(map[string]modelInfo)
+)
+
+func register(modelType string, info modelInfo) {
+	models[modelType] = info
 }
 
-// GetParentType returns object's parent type name
-func GetParentType(modelObj interface{}) string {
-	return hierarchyMap[utils.TypeOf(modelObj)]
+// NewEntity is the factory function to construct a new entity by type
+func NewEntity(entityType string) (Entity, error) {
+	m, ok := models[entityType]
+	if !ok {
+		return nil, fmt.Errorf("Invalid Entity type: " + entityType)
+	}
+	if m.constructor == nil {
+		return nil, fmt.Errorf("Entity constructor not found: " + entityType)
+	}
+	return m.constructor(), nil
 }
 
-// GetDbTableName returns model's corresponding db table name
-func GetDbTableName(modelObj interface{}) string {
-	return pluralizer.Plural(utils.TypeOf(modelObj))
+// ModelNames returns names for all registered models
+func ModelNames() []string {
+	names := make([]string, len(models))
+	i := 0
+	for k := range models {
+		names[i] = k
+		i++
+	}
+	return names
 }
 
-func (b *BaseModel) preCreate(tx *gorm.DB, obj interface{}) (err error) {
+func (b *BaseModel) preCreate(tx *gorm.DB, obj Entity) (err error) {
+	// name is mandatory field
 	if b.Name == "" {
 		return fmt.Errorf("Empty name not allow")
 	}
+
+	// auto set the ID if not set
 	if b.ID == (uuid.UUID{}) {
 		b.ID = uuid.New()
 	}
-	parentType := GetParentType(obj)
-	if parentType == "" {
-		b.ParentID = uuid.UUID{}
+
+	// set or validate the parent type
+	objType := strings.ToLower(utils.TypeOf(obj))
+	m, ok := models[objType]
+	if !ok {
+		return fmt.Errorf("Model not supported: %s", objType)
+	}
+	if b.ParentType == "" && len(m.allowedParentTypes) > 0 {
+		b.ParentType = m.allowedParentTypes[0]
+	}
+	if _, ok = utils.Find(m.allowedParentTypes, b.ParentType); b.ParentType != "" && !ok {
+		return fmt.Errorf("Invalid parent type: %s", b.ParentType)
+	}
+
+	// auto fill fqname or ParentID
+	if b.ParentType == "" {
+		b.ParentID = EMPTY_UUID
 		b.FQName = fmt.Sprintf(`["%s"]`, b.Name)
 	} else {
-		if b.ParentID == (uuid.UUID{}) {
-			return fmt.Errorf("Empty parent uuid not allow for %s", parentType)
+		// if both FQName and parentID are not empty, FQName takes the prededence
+		if b.FQName != "" && b.ParentID != EMPTY_UUID {
+			b.ParentID = EMPTY_UUID
 		}
-		sql := fmt.Sprintf("select fqname from %s where id = ?", pluralizer.Plural(parentType))
-		var parentFQName string
-		tx.Raw(sql, b.ParentID).Scan(&parentFQName)
-		if parentFQName == "" {
-			return fmt.Errorf("Failed to find parent obj: %s[%v]", parentType, b.ParentID)
+
+		if b.FQName != "" && b.ParentID == EMPTY_UUID {
+			sql := fmt.Sprintf("select id from %s where fqname = ?", utils.Pluralize(b.ParentType))
+			parentFQN, err := custom.ParseParentFQName(b.FQName)
+			if err != nil {
+				return fmt.Errorf("Invalid fqname: %s", b.FQName)
+			}
+			tx.Raw(sql, parentFQN).Scan(&b.ParentID)
+			if b.ParentID == EMPTY_UUID {
+				return fmt.Errorf("Parent id not found for fqname[%s]: %s", b.ParentType, parentFQN)
+			}
+		} else if b.FQName == "" && b.ParentID != EMPTY_UUID {
+			sql := fmt.Sprintf("select fqname from %s where id = ?", utils.Pluralize(b.ParentType))
+			var parentFQName string
+			tx.Raw(sql, b.ParentID).Scan(&parentFQName)
+			if parentFQName == "" {
+				return fmt.Errorf("Failed to find parent obj: %s[%v]", b.ParentType, b.ParentID)
+			}
+			b.FQName = custom.ConstructFQName(parentFQName, b.Name)
+		} else {
+			return fmt.Errorf("Both fqname and parentID are not set")
 		}
-		b.FQName = fmt.Sprintf(`%s, "%s"]`, parentFQName[:len(parentFQName)-1], b.Name)
 	}
 	return nil
-}
-
-var (
-	hierarchyMap map[string]string = make(map[string]string)
-	pluralizer   *pluralize.Client = pluralize.NewClient()
-)
-
-func addHierarchy(parent interface{}, child interface{}) {
-	hierarchyMap[utils.TypeOf(child)] = utils.TypeOf(parent)
 }

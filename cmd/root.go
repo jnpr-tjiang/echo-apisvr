@@ -19,11 +19,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/jnpr-tjiang/echo-apisvr/pkg/api"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/config"
-	"github.com/jnpr-tjiang/echo-apisvr/pkg/database"
-	"github.com/jnpr-tjiang/echo-apisvr/pkg/models"
 	"github.com/spf13/cobra"
-	"gorm.io/datatypes"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 var cfgFile string
@@ -34,35 +33,9 @@ var rootCmd = &cobra.Command{
 	Short: "Demo api server for CSO data model",
 	Long:  `This demo server is meant to learn/test echo framework`,
 	Run: func(cmd *cobra.Command, args []string) {
-		db, err := database.Init()
-		if err != nil {
-			panic(fmt.Sprintf("Failed to initialize the database: %v", err))
-		}
-
-		domain := models.Domain{
-			Base: models.BaseModel{
-				Name:    "default",
-				Payload: datatypes.JSON([]byte(`{"display_name": "default", "system": {"serial": "SN1234", "mac":"ab:34:12:f3"}}`)),
-			},
-		}
-		if err = db.Create(&domain).Error; err != nil {
-			fmt.Printf("Error: %v", err)
-		}
-
-		project := models.Project{
-			Base: models.BaseModel{
-				Name:     "juniper",
-				ParentID: domain.Base.ID,
-			},
-		}
-		if err = db.Create(&project).Error; err != nil {
-			fmt.Printf("Error: %v", err)
-		}
-
-		id := domain.Base.ID
-		domain = models.Domain{}
-		db.First(&domain, id)
-		fmt.Printf("domain[%s]", domain.Base.Name)
+		// TestGoJsonSchema()
+		// TestGorm()
+		api.Run()
 	},
 }
 
@@ -72,6 +45,7 @@ func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+		api.Run()
 	}
 }
 
@@ -88,4 +62,26 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+}
+
+func TestGoJsonSchema() {
+	s := gojsonschema.NewReferenceLoader("file:////Users/tjiang/code/playground/echo-apisvr/schemas/device.json")
+	d := gojsonschema.NewReferenceLoader("file:////Users/tjiang/code/playground/echo-apisvr/testdata/data.json")
+	result, err := gojsonschema.Validate(s, d)
+	if err != nil {
+		panic(err)
+	}
+	if result.Valid() {
+		fmt.Printf("The document is valid\n")
+	} else {
+		fmt.Printf("The document is not valid. see errors :\n")
+		for _, desc := range result.Errors() {
+			fmt.Printf("- %s\n", desc)
+		}
+	}
+	// jsonMap := make(map[string]interface{})
+	// err := yaml.Unmarshal([]byte(ymldata), &jsonMap)
+	// if err != nil {
+	// 	panic(err)
+	// }
 }

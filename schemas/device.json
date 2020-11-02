@@ -1,0 +1,22 @@
+{
+  "title": "Device",
+  "type": "object",
+  "properties": {
+     "region": {
+        "description": "Region where the device belongs to",
+        "type": "string",
+        "pattern": "^(\\([0-9]{3}\\))?[0-9]{3}-[0-9]{4}$"
+     },
+     "dic_op_info": {
+         "$ref": "root_types.json#/definitions/DicOpInfoType"
+     },
+     "connection_type": {
+        "description": "Device connection type",
+        "enum": [
+           "DEVICE_INITIATED",
+           "CSP_INITIATED"
+        ],
+        "type": "string"
+     }
+  }
+}
