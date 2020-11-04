@@ -37,8 +37,9 @@ type (
 )
 
 var (
-	EMPTY_UUID uuid.UUID            = uuid.UUID{}
-	models     map[string]modelInfo = make(map[string]modelInfo)
+	// EmptyUUID for empty UUID
+	EmptyUUID uuid.UUID            = uuid.UUID{}
+	models    map[string]modelInfo = make(map[string]modelInfo)
 )
 
 func register(modelType string, info modelInfo) {
@@ -99,15 +100,15 @@ func (b *BaseModel) preCreate(tx *gorm.DB, obj Entity) (err error) {
 
 	// auto fill fqname or ParentID
 	if b.ParentType == "" {
-		b.ParentID = EMPTY_UUID
+		b.ParentID = EmptyUUID
 		b.FQName = fmt.Sprintf(`["%s"]`, b.Name)
 	} else {
 		// if both FQName and parentID are not empty, FQName takes the prededence
-		if b.FQName != "" && b.ParentID != EMPTY_UUID {
-			b.ParentID = EMPTY_UUID
+		if b.FQName != "" && b.ParentID != EmptyUUID {
+			b.ParentID = EmptyUUID
 		}
 
-		if b.FQName != "" && b.ParentID == EMPTY_UUID {
+		if b.FQName != "" && b.ParentID == EmptyUUID {
 			sql := fmt.Sprintf("select id from %s where fqname = ?", utils.Pluralize(b.ParentType))
 			parentFQN, err := custom.ParseParentFQName(b.FQName)
 			if err != nil {
@@ -119,7 +120,7 @@ func (b *BaseModel) preCreate(tx *gorm.DB, obj Entity) (err error) {
 				return fmt.Errorf("Parent id not found for fqname[%s]: %s", b.ParentType, parentFQN)
 			}
 			b.ParentID = ids[0]
-		} else if b.FQName == "" && b.ParentID != EMPTY_UUID {
+		} else if b.FQName == "" && b.ParentID != EmptyUUID {
 			sql := fmt.Sprintf("select fqname from %s where id = ?", utils.Pluralize(b.ParentType))
 			var parentFQName string
 			tx.Raw(sql, b.ParentID).Scan(&parentFQName)

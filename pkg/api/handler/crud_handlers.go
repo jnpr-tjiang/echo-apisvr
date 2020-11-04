@@ -9,7 +9,6 @@ import (
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/database"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/models"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/models/custom"
-	"github.com/jnpr-tjiang/echo-apisvr/pkg/utils"
 	"github.com/labstack/echo"
 )
 
@@ -61,7 +60,7 @@ func ModelGetHandler(c echo.Context) error {
 	if err = db.First(entity, uuid).Error; err != nil {
 		return err
 	}
-	return c.String(http.StatusOK, fmt.Sprintf("%s", entity.BaseModel().Payload))
+	return c.Blob(http.StatusOK, echo.MIMEApplicationJSON, entity.BaseModel().Payload)
 }
 
 // ModelUpdateHandler for request to update a model entity
@@ -118,7 +117,7 @@ func populateBaseModel(m *models.BaseModel, payload map[string]interface{}) {
 
 func newEntity(path string) (models.Entity, error) {
 	entityType := strings.Split(path, "/")[1]
-	entity, err := models.NewEntity(utils.Singularize(entityType))
+	entity, err := models.NewEntity(entityType)
 	if err != nil {
 		return nil, err
 	}

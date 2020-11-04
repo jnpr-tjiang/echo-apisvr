@@ -59,7 +59,7 @@ func TestBaseModel_preCreate(t *testing.T) {
 		t.Errorf("Failed to create domain: %v", err)
 		return
 	}
-	if domain.BaseModel().ID == EMPTY_UUID || domain.BaseModel().FQName != "[\"default\"]" {
+	if domain.BaseModel().ID == EmptyUUID || domain.BaseModel().FQName != "[\"default\"]" {
 		t.Errorf("Wrong ParentID")
 		return
 	}
@@ -74,7 +74,7 @@ func TestBaseModel_preCreate(t *testing.T) {
 		t.Errorf("Failed to create project: %v", err)
 		return
 	}
-	if project.BaseModel().ID == EMPTY_UUID ||
+	if project.BaseModel().ID == EmptyUUID ||
 		project.BaseModel().FQName != "[\"default\", \"juniper\"]" ||
 		project.BaseModel().ParentType != "domain" ||
 		project.BaseModel().ParentID != domain.BaseModel().ID {
