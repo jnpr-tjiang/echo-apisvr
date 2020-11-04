@@ -106,10 +106,12 @@ func (b *BaseModel) preCreate(tx *gorm.DB, obj Entity) (err error) {
 			if err != nil {
 				return fmt.Errorf("Invalid fqname: %s", b.FQName)
 			}
-			tx.Raw(sql, parentFQN).Scan(&b.ParentID)
-			if b.ParentID == EMPTY_UUID {
+			var ids []uuid.UUID
+			tx.Raw(sql, parentFQN).Scan(&ids)
+			if len(ids) == 0 {
 				return fmt.Errorf("Parent id not found for fqname[%s]: %s", b.ParentType, parentFQN)
 			}
+			b.ParentID = ids[0]
 		} else if b.FQName == "" && b.ParentID != EMPTY_UUID {
 			sql := fmt.Sprintf("select fqname from %s where id = ?", utils.Pluralize(b.ParentType))
 			var parentFQName string

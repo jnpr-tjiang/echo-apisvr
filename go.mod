@@ -5,6 +5,7 @@ go 1.15
 require (
 	github.com/cweill/gotests v1.5.3 // indirect
 	github.com/gertd/go-pluralize v0.1.7
+	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/google/uuid v1.1.2
 	github.com/jinzhu/gorm v1.9.16
 	github.com/labstack/echo v3.3.10+incompatible

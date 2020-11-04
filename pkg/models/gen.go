@@ -4,7 +4,8 @@ import (
 	"gorm.io/gorm"
 )
 
-func Init() {
+// Init the data model's meta info
+func Init() error {
 	register("domain", modelInfo{
 		allowedParentTypes: []string{},
 		constructor:        func() Entity { return &Domain{} },
@@ -21,6 +22,8 @@ func Init() {
 		allowedParentTypes: []string{"project"},
 		constructor:        func() Entity { return &Devicefamily{} },
 	})
+
+	return nil
 }
 
 // Domain -----------------------------------------------------------------

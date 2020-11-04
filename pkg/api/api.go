@@ -1,11 +1,10 @@
 package api
 
 import (
-	"fmt"
-	"net/http"
-
+	"github.com/jnpr-tjiang/echo-apisvr/pkg/api/route"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/database"
 	m "github.com/jnpr-tjiang/echo-apisvr/pkg/middleware"
+	"github.com/jnpr-tjiang/echo-apisvr/pkg/models"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 )
@@ -31,26 +30,22 @@ func Run() {
 		panic(err)
 	}
 
-	// middleware
+	// init the data model
+	if err := models.Init(); err != nil {
+		panic(err)
+	}
+
+	// middlewares
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 
-	// e.Pre(middleware.RewriteWithConfig(loadRewriteConfig()))
 	stats := m.NewAPIStats()
 	e.Use(stats.Middleware())
 	e.GET("/stats", stats.GetStatsHandler())
 
 	// Routes
-	// routes.AddCRUDRoutes()
-	e.GET("/domains/:id", getCreateHandler("domain"))
+	route.AddCRUDRoutes(e)
 
 	// Start server
 	e.Logger.Fatal(e.Start(":7920"))
-}
-
-func getCreateHandler(objType string) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		msg := fmt.Sprintf("url: %s\ntype: %s\nid: %s\nqstr=%s\n", c.Request().URL, objType, c.Param("id"), c.QueryParam("qstr"))
-		return c.String(http.StatusOK, msg)
-	}
 }

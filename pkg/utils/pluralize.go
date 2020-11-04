@@ -8,3 +8,8 @@ var pluralizer *pluralize.Client = pluralize.NewClient()
 func Pluralize(s string) string {
 	return pluralizer.Plural(s)
 }
+
+// Singularize a string
+func Singularize(s string) string {
+	return pluralizer.Singular(s)
+}
