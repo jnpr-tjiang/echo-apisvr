@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -14,13 +15,14 @@ import (
 type (
 	// BaseModel - base database entity model
 	BaseModel struct {
-		ID          uuid.UUID      `gorm:"column:id;type:uuid;primary_key"`
-		Name        string         `gorm:"column:name;size:128;not null;<-:create"`
-		DisplayName string         `gorm:"column:name;size:128;not null;<-:create"`
-		ParentID    uuid.UUID      `gorm:"column:parent_id;type:uuid"`
-		ParentType  string         `gorm:"column:parent_type`
-		FQName      string         `gorm:"column:fqname;not null;uniqueIndex"`
-		Payload     datatypes.JSON `gorm:"column:payload"`
+		ID          uuid.UUID               `gorm:"column:id;type:uuid;primary_key"`
+		Name        string                  `gorm:"column:name;size:128;not null;<-:create"`
+		DisplayName string                  `gorm:"column:display_name;size:128;not null"`
+		ParentID    uuid.UUID               `gorm:"column:parent_id;type:uuid"`
+		ParentType  string                  `gorm:"column:parent_type`
+		FQName      string                  `gorm:"column:fqname;not null;uniqueIndex"`
+		Payload     datatypes.JSON          `gorm:"column:payload"`
+		JSON        *map[string]interface{} `gorm:"-"`
 	}
 
 	// Entity is base interface for all models
@@ -70,6 +72,11 @@ func (b *BaseModel) preCreate(tx *gorm.DB, obj Entity) (err error) {
 	// name is mandatory field
 	if b.Name == "" {
 		return fmt.Errorf("Empty name not allow")
+	}
+
+	// auto set the display name if not set
+	if b.DisplayName == "" {
+		b.DisplayName = b.Name
 	}
 
 	// auto set the ID if not set
@@ -124,5 +131,19 @@ func (b *BaseModel) preCreate(tx *gorm.DB, obj Entity) (err error) {
 			return fmt.Errorf("Both fqname and parentID are not set")
 		}
 	}
+	b.constructPayload(obj)
 	return nil
+}
+
+func (b *BaseModel) constructPayload(obj Entity) (err error) {
+	idstr := b.ID.String()
+	objType := strings.ToLower(utils.TypeOf(obj))
+	(*b.JSON)["uuid"] = idstr
+	(*b.JSON)["parent_type"] = b.ParentType
+	(*b.JSON)["parent_uuid"] = b.ParentID.String()
+	(*b.JSON)["parent_uri"] = fmt.Sprintf("/%s/%s", b.ParentType, b.ParentID.String())
+	(*b.JSON)["uri"] = fmt.Sprintf("/%s/%s", objType, idstr)
+	(*b.JSON)["display_name"] = b.DisplayName
+	b.Payload, err = json.Marshal(*b.JSON)
+	return err
 }

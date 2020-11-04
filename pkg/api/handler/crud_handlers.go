@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -42,15 +41,6 @@ func ModelCreateHandler(c echo.Context) error {
 	return c.String(http.StatusOK, fmt.Sprintf("%s", entity.BaseModel().ID))
 }
 
-func newEntity(path string) (models.Entity, error) {
-	entityType := strings.Split(path, "/")[1]
-	entity, err := models.NewEntity(utils.Singularize(entityType))
-	if err != nil {
-		return nil, err
-	}
-	return entity, nil
-}
-
 // ModelGetAllHandler for request to get all model entities
 func ModelGetAllHandler(c echo.Context) error {
 	msg := fmt.Sprintf("url: %s\nid: %s\nqstr=%s\n", c.Request().URL, c.Param("id"), c.QueryParam("qstr"))
@@ -82,8 +72,19 @@ func ModelUpdateHandler(c echo.Context) error {
 
 // ModelDeleteHandler for request to delete a model entity
 func ModelDeleteHandler(c echo.Context) error {
-	msg := fmt.Sprintf("url: %s\nid: %s\nqstr=%s\n", c.Request().URL, c.Param("id"), c.QueryParam("qstr"))
-	return c.String(http.StatusOK, msg)
+	entity, err := newEntity(c.Path())
+	if err != nil {
+		return err
+	}
+	uuid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return err
+	}
+	db := database.GormDB()
+	if err = db.Delete(entity, uuid).Error; err != nil {
+		return err
+	}
+	return c.String(http.StatusOK, fmt.Sprintf("%s", uuid.String()))
 }
 
 func populateBaseModel(m *models.BaseModel, payload map[string]interface{}) {
@@ -92,6 +93,9 @@ func populateBaseModel(m *models.BaseModel, payload map[string]interface{}) {
 	}
 	if name, ok := payload["name"]; ok {
 		m.Name = name.(string)
+	}
+	if displayName, ok := payload["display_name"]; ok {
+		m.DisplayName = displayName.(string)
 	}
 	if fqname, ok := payload["fqname"]; ok {
 		var s []string
@@ -109,5 +113,14 @@ func populateBaseModel(m *models.BaseModel, payload map[string]interface{}) {
 	if parentID, ok := payload["parent_uuid"]; ok {
 		m.ParentID = parentID.(uuid.UUID)
 	}
-	m.Payload, _ = json.Marshal(payload)
+	m.JSON = &payload
+}
+
+func newEntity(path string) (models.Entity, error) {
+	entityType := strings.Split(path, "/")[1]
+	entity, err := models.NewEntity(utils.Singularize(entityType))
+	if err != nil {
+		return nil, err
+	}
+	return entity, nil
 }
