@@ -11,8 +11,10 @@ require (
 	github.com/labstack/echo v3.3.10+incompatible
 	github.com/labstack/gommon v0.3.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/nsf/jsondiff v0.0.0-20200515183724-f29ed568f4ce // indirect
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/viper v1.7.1
+	github.com/stretchr/testify v1.6.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 	gopkg.in/yaml.v2 v2.2.8
 	gorm.io/datatypes v0.0.0-20200924071644-3967db6857cf

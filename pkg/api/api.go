@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/api/route"
+	"github.com/jnpr-tjiang/echo-apisvr/pkg/config"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/database"
 	m "github.com/jnpr-tjiang/echo-apisvr/pkg/middleware"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/models"
@@ -9,24 +10,13 @@ import (
 	"github.com/labstack/echo/middleware"
 )
 
-func loadRewriteConfig() middleware.RewriteConfig {
-	rules := make(map[string]string)
-	rules["/domains"] = "/_crud?type=domain"
-	rules["/projects"] = "/_crud?type=project"
-	rules["/devices"] = "/_crud?type=device"
-	rules["/devicefamilies"] = "/crud?type=devicefamily"
-	return middleware.RewriteConfig{
-		Rules: rules,
-	}
-}
-
 // Run - run the api server
 func Run() {
 	e := echo.New()
 	e.Debug = true
 
 	// initialize database
-	if _, err := database.Init(); err != nil {
+	if _, err := database.Init(config.GetConfig()); err != nil {
 		panic(err)
 	}
 

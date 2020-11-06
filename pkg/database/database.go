@@ -17,8 +17,7 @@ var (
 )
 
 // Init - initialize the database connection
-func Init() (*gorm.DB, error) {
-	cfg := config.GetConfig()
+func Init(cfg *config.Configuration) (*gorm.DB, error) {
 	driver := cfg.Database.Driver
 	dbName := cfg.Database.Dbname
 	username := cfg.Database.Username

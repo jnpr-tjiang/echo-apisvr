@@ -37,7 +37,7 @@ func ModelCreateHandler(c echo.Context) error {
 	if err = db.Create(entity).Error; err != nil {
 		return err
 	}
-	return c.String(http.StatusOK, fmt.Sprintf("%s", entity.BaseModel().ID))
+	return c.String(http.StatusCreated, fmt.Sprintf("%s", entity.BaseModel().ID))
 }
 
 // ModelGetAllHandler for request to get all model entities

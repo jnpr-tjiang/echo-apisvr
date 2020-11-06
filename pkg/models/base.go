@@ -140,11 +140,20 @@ func (b *BaseModel) constructPayload(obj Entity) (err error) {
 	idstr := b.ID.String()
 	objType := strings.ToLower(utils.TypeOf(obj))
 	(*b.JSON)["uuid"] = idstr
-	(*b.JSON)["parent_type"] = b.ParentType
-	(*b.JSON)["parent_uuid"] = b.ParentID.String()
-	(*b.JSON)["parent_uri"] = fmt.Sprintf("/%s/%s", b.ParentType, b.ParentID.String())
+	if b.ParentType != "" {
+		(*b.JSON)["parent_type"] = b.ParentType
+		(*b.JSON)["parent_uuid"] = b.ParentID.String()
+		(*b.JSON)["parent_uri"] = fmt.Sprintf("/%s/%s", b.ParentType, b.ParentID.String())
+	}
 	(*b.JSON)["uri"] = fmt.Sprintf("/%s/%s", objType, idstr)
 	(*b.JSON)["display_name"] = b.DisplayName
+
+	var fqname []string
+	if err = json.Unmarshal([]byte(b.FQName), &fqname); err != nil {
+		return err
+	}
+	(*b.JSON)["fqname"] = fqname
+
 	b.Payload, err = json.Marshal(*b.JSON)
 	return err
 }
