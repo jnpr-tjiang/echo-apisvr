@@ -3,7 +3,9 @@ package middleware
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 
+	"github.com/jnpr-tjiang/echo-apisvr/pkg/config"
 	"github.com/labstack/echo"
 	"github.com/xeipuuv/gojsonschema"
 )
@@ -16,7 +18,8 @@ var (
 // JSONSchemaValidator middleware validate the payload against the model schema
 func JSONSchemaValidator() echo.MiddlewareFunc {
 	if schema == nil {
-		sl := gojsonschema.NewReferenceLoader("file:////Users/tjiang/code/playground/echo-apisvr/schemas/device.json")
+		schemaFile := config.GetConfig().Server.Schema
+		sl := gojsonschema.NewReferenceLoader(fmt.Sprintf("file:///%s", schemaFile))
 		schema, err = gojsonschema.NewSchema(sl)
 	}
 	return func(next echo.HandlerFunc) echo.HandlerFunc {

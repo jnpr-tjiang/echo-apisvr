@@ -16,6 +16,7 @@ type Configuration struct {
 	Database DatabaseConfiguration
 }
 
+// DatabaseConfiguration -
 type DatabaseConfiguration struct {
 	Driver       string
 	Dbname       string
@@ -28,10 +29,12 @@ type DatabaseConfiguration struct {
 	MaxIdleConns int
 }
 
+// ServerConfiguration -
 type ServerConfiguration struct {
 	Port   string
 	Secret string
 	Mode   string
+	Schema string
 }
 
 // InitConfig - initialize configuration

@@ -22,7 +22,6 @@ import (
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/api"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/config"
 	"github.com/spf13/cobra"
-	"github.com/xeipuuv/gojsonschema"
 )
 
 var cfgFile string
@@ -33,8 +32,6 @@ var rootCmd = &cobra.Command{
 	Short: "Demo api server for CSO data model",
 	Long:  `This demo server is meant to learn/test echo framework`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// TestGoJsonSchema()
-		// TestGorm()
 		api.Run()
 	},
 }
@@ -62,26 +59,4 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-}
-
-func TestGoJsonSchema() {
-	s := gojsonschema.NewReferenceLoader("file:////Users/tjiang/code/playground/echo-apisvr/schemas/device.json")
-	d := gojsonschema.NewReferenceLoader("file:////Users/tjiang/code/playground/echo-apisvr/testdata/data.json")
-	result, err := gojsonschema.Validate(s, d)
-	if err != nil {
-		panic(err)
-	}
-	if result.Valid() {
-		fmt.Printf("The document is valid\n")
-	} else {
-		fmt.Printf("The document is not valid. see errors :\n")
-		for _, desc := range result.Errors() {
-			fmt.Printf("- %s\n", desc)
-		}
-	}
-	// jsonMap := make(map[string]interface{})
-	// err := yaml.Unmarshal([]byte(ymldata), &jsonMap)
-	// if err != nil {
-	// 	panic(err)
-	// }
 }

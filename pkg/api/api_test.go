@@ -96,7 +96,6 @@ func TestCRUD(t *testing.T) {
 			"connection_type": "CSP_INITIATED"
 		}`, deviceID, deviceID, projectID, projectID)
 	require.JSONEq(t, want, result)
-	adsf()
 
 	// deletion
 	result = deleteObj(t, e, "device", deviceID)
@@ -169,15 +168,14 @@ func deleteObj(t *testing.T, e *echo.Echo, objType string, objID string) string 
 
 func setupTestcase(t *testing.T) *echo.Echo {
 	os.Remove("test.db")
-	cfg := config.Configuration{
-		Database: config.DatabaseConfiguration{
-			Driver: "sqlite3",
-			Dbname: "test",
-		},
-	}
+	config.InitConfig("")
+	cfg := config.GetConfig()
+	(*cfg).Database.Driver = "sqlite3"
+	(*cfg).Database.Dbname = "test"
+
 	e := echo.New()
 	e.Debug = true
-	_, err := database.Init(&cfg)
+	_, err := database.Init(cfg)
 	require.NoError(t, err)
 	require.NoError(t, models.Init())
 	route.AddCRUDRoutes(e)
