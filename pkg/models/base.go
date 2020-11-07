@@ -152,7 +152,7 @@ func (b *BaseModel) constructPayload(obj Entity) (err error) {
 	if err = json.Unmarshal([]byte(b.FQName), &fqname); err != nil {
 		return err
 	}
-	(*b.JSON)["fqname"] = fqname
+	(*b.JSON)["fq_name"] = fqname
 
 	b.Payload, err = json.Marshal(*b.JSON)
 	return err

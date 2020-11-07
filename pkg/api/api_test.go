@@ -42,19 +42,19 @@ func TestCRUD(t *testing.T) {
 	want := fmt.Sprintf(`{
 		"name":"default",
 		"display_name":"default",
-		"fqname": ["default"],
+		"fq_name": ["default"],
 		"uri":"/domain/%s",
 		"uuid":"%s"
 	}`, domainID, domainID)
 	require.JSONEq(t, want, result)
 
 	// project CRUD
-	projectID := createObj(t, e, "project", `{"name": "juniper", "fqname": ["default", "juniper"], "display_name": "Juniper Networks"}`)
+	projectID := createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
 	result = getObjByID(t, e, "project", projectID)
 	want = fmt.Sprintf(`{
 			"name":"juniper",
 			"display_name":"Juniper Networks",
-			"fqname": ["default", "juniper"],
+			"fq_name": ["default", "juniper"],
 			"uri":"/project/%s",
 			"uuid":"%s",
 			"parent_type": "domain",
@@ -66,7 +66,7 @@ func TestCRUD(t *testing.T) {
 	// device
 	deviceID := createObj(t, e, "device", `{
 		"name": "junos",
-		"fqname": ["default", "juniper", "junos"],
+		"fq_name": ["default", "juniper", "junos"],
 		"region": "(510)386-1943",
 		"dic_op_info": {
 			"detected_dic_ip": "10.1.1.2",
@@ -79,7 +79,7 @@ func TestCRUD(t *testing.T) {
 			"name": "junos",
 			"uri": "/device/%s",
 			"uuid": "%s",
-			"fqname": [
+			"fq_name": [
 				"default",
 				"juniper",
 				"junos"

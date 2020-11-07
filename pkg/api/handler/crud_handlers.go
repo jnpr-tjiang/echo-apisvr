@@ -96,7 +96,7 @@ func populateBaseModel(m *models.BaseModel, payload map[string]interface{}) {
 	if displayName, ok := payload["display_name"]; ok {
 		m.DisplayName = displayName.(string)
 	}
-	if fqname, ok := payload["fqname"]; ok {
+	if fqname, ok := payload["fq_name"]; ok {
 		var s []string
 		for _, v := range fqname.([]interface{}) {
 			s = append(s, v.(string))
