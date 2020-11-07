@@ -40,11 +40,13 @@ func TestCRUD(t *testing.T) {
 	domainID := createObj(t, e, "domain", `{"name": "default"}`)
 	result := getObjByID(t, e, "domain", domainID)
 	want := fmt.Sprintf(`{
-		"name":"default",
-		"display_name":"default",
-		"fq_name": ["default"],
-		"uri":"/domain/%s",
-		"uuid":"%s"
+		"domain": {
+			"name":"default",
+			"display_name":"default",
+			"fq_name": ["default"],
+			"uri":"/domain/%s",
+			"uuid":"%s"
+		}
 	}`, domainID, domainID)
 	require.JSONEq(t, want, result)
 
@@ -52,14 +54,16 @@ func TestCRUD(t *testing.T) {
 	projectID := createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
 	result = getObjByID(t, e, "project", projectID)
 	want = fmt.Sprintf(`{
-			"name":"juniper",
-			"display_name":"Juniper Networks",
-			"fq_name": ["default", "juniper"],
-			"uri":"/project/%s",
-			"uuid":"%s",
-			"parent_type": "domain",
-			"parent_uuid": "%s",
-			"parent_uri": "/domain/%s"
+			"project": {
+				"name":"juniper",
+				"display_name":"Juniper Networks",
+				"fq_name": ["default", "juniper"],
+				"uri":"/project/%s",
+				"uuid":"%s",
+				"parent_type": "domain",
+				"parent_uuid": "%s",
+				"parent_uri": "/domain/%s"
+			}
 		}`, projectID, projectID, domainID, domainID)
 	require.JSONEq(t, want, result)
 
@@ -76,24 +80,26 @@ func TestCRUD(t *testing.T) {
 	}`)
 	result = getObjByID(t, e, "device", deviceID)
 	want = fmt.Sprintf(`{
-			"name": "junos",
-			"uri": "/device/%s",
-			"uuid": "%s",
-			"fq_name": [
-				"default",
-				"juniper",
-				"junos"
-			],
-			"region": "(510)386-1943",
-			"parent_uri": "/project/%s",
-			"dic_op_info": {
-				"detected_dic_ip": "10.1.1.2",
-				"last_detection_timestamp": 13232233.775
-			},
-			"parent_type": "project",
-			"parent_uuid": "%s",
-			"display_name": "junos",
-			"connection_type": "CSP_INITIATED"
+			"device": {
+				"name": "junos",
+				"uri": "/device/%s",
+				"uuid": "%s",
+				"fq_name": [
+					"default",
+					"juniper",
+					"junos"
+				],
+				"region": "(510)386-1943",
+				"parent_uri": "/project/%s",
+				"dic_op_info": {
+					"detected_dic_ip": "10.1.1.2",
+					"last_detection_timestamp": 13232233.775
+				},
+				"parent_type": "project",
+				"parent_uuid": "%s",
+				"display_name": "junos",
+				"connection_type": "CSP_INITIATED"
+			}
 		}`, deviceID, deviceID, projectID, projectID)
 	require.JSONEq(t, want, result)
 

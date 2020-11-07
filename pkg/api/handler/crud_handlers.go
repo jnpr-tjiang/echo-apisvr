@@ -60,7 +60,11 @@ func ModelGetHandler(c echo.Context) error {
 	if err = db.First(entity, uuid).Error; err != nil {
 		return err
 	}
-	return c.Blob(http.StatusOK, echo.MIMEApplicationJSON, entity.BaseModel().Payload)
+	entityType := strings.Split(c.Path(), "/")[1]
+	body := []byte(fmt.Sprintf(`{"%s":`, entityType))
+	body = append(body, entity.BaseModel().Payload...)
+	body = append(body, []byte("}")...)
+	return c.Blob(http.StatusOK, echo.MIMEApplicationJSON, body)
 }
 
 // ModelUpdateHandler for request to update a model entity
