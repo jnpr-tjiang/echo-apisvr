@@ -26,7 +26,8 @@ func ModelCreateHandler(c echo.Context) error {
 	payload := p.(map[string]interface{})
 
 	// create the entity
-	entity, err := newEntity(c.Path())
+	entityType := strings.Split(c.Path(), "/")[1]
+	entity, err := models.NewEntity(entityType)
 	if err != nil {
 		return err
 	}
@@ -42,13 +43,32 @@ func ModelCreateHandler(c echo.Context) error {
 
 // ModelGetAllHandler for request to get all model entities
 func ModelGetAllHandler(c echo.Context) error {
-	msg := fmt.Sprintf("url: %s\nid: %s\nqstr=%s\n", c.Request().URL, c.Param("id"), c.QueryParam("qstr"))
-	return c.String(http.StatusOK, msg)
+	entityType := strings.Split(c.Path(), "/")[1]
+	entity, err := models.NewEntity(entityType)
+	if err != nil {
+		return err
+	}
+
+	db := database.GormDB()
+	entities, err := entity.Find(db)
+	if err != nil {
+		return err
+	}
+	body := []byte(fmt.Sprintf(`{"total": %d, "%s": [`, len(entities), entityType))
+	for i, v := range entities {
+		body = append(body, v.BaseModel().Payload...)
+		if (i + 1) != len(entities) {
+			body = append(body, ","...)
+		}
+	}
+	body = append(body, []byte("]}")...)
+	return c.Blob(http.StatusOK, echo.MIMEApplicationJSON, body)
 }
 
 // ModelGetHandler for request to get an model entity by id
 func ModelGetHandler(c echo.Context) error {
-	entity, err := newEntity(c.Path())
+	entityType := strings.Split(c.Path(), "/")[1]
+	entity, err := models.NewEntity(entityType)
 	if err != nil {
 		return err
 	}
@@ -60,7 +80,6 @@ func ModelGetHandler(c echo.Context) error {
 	if err = db.First(entity, uuid).Error; err != nil {
 		return err
 	}
-	entityType := strings.Split(c.Path(), "/")[1]
 	body := []byte(fmt.Sprintf(`{"%s":`, entityType))
 	body = append(body, entity.BaseModel().Payload...)
 	body = append(body, []byte("}")...)
@@ -75,7 +94,8 @@ func ModelUpdateHandler(c echo.Context) error {
 
 // ModelDeleteHandler for request to delete a model entity
 func ModelDeleteHandler(c echo.Context) error {
-	entity, err := newEntity(c.Path())
+	entityType := strings.Split(c.Path(), "/")[1]
+	entity, err := models.NewEntity(entityType)
 	if err != nil {
 		return err
 	}
@@ -117,13 +137,4 @@ func populateBaseModel(m *models.BaseModel, payload map[string]interface{}) {
 		m.ParentID = parentID.(uuid.UUID)
 	}
 	m.JSON = &payload
-}
-
-func newEntity(path string) (models.Entity, error) {
-	entityType := strings.Split(path, "/")[1]
-	entity, err := models.NewEntity(entityType)
-	if err != nil {
-		return nil, err
-	}
-	return entity, nil
 }

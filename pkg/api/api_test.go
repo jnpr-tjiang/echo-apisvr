@@ -33,7 +33,7 @@ func shutdown() {
 
 }
 
-func TestCRUD(t *testing.T) {
+func TestBasicCRUD(t *testing.T) {
 	e := setupTestcase(t)
 
 	// domain CRUD
@@ -112,6 +112,36 @@ func TestCRUD(t *testing.T) {
 	require.Equal(t, domainID, result)
 }
 
+func TestGetAll(t *testing.T) {
+	e := setupTestcase(t)
+
+	// domain CRUD
+	id1 := createObj(t, e, "domain", `{"name": "domain_1"}`)
+	id2 := createObj(t, e, "domain", `{"name": "domain_2"}`)
+	result := getAllObjs(t, e, "domain")
+	t.Log(result)
+	want := fmt.Sprintf(`{
+		"total": 2,
+		"domain": [
+			{
+				"name":"domain_1",
+				"display_name":"domain_1",
+				"fq_name": ["domain_1"],
+				"uri":"/domain/%s",
+				"uuid":"%s"
+			},
+			{
+				"name":"domain_2",
+				"display_name":"domain_2",
+				"fq_name": ["domain_2"],
+				"uri":"/domain/%s",
+				"uuid":"%s"
+			}
+		]
+	}`, id1, id1, id2, id2)
+	require.JSONEq(t, want, result)
+}
+
 type RequestInfo struct {
 	method         string
 	uri            string
@@ -129,7 +159,7 @@ func createObj(t *testing.T, e *echo.Echo, objType string, payload string) strin
 		middlewareFunc: middleware.JSONSchemaValidator(),
 		handlerFunc:    handler.ModelCreateHandler,
 		ctxInit: func(c echo.Context) {
-			c.SetPath("/" + objType)
+			c.SetPath(fmt.Sprintf("/%s", objType))
 		},
 	})
 	require.Equal(t, http.StatusCreated, rec.Code)
@@ -149,6 +179,21 @@ func getObjByID(t *testing.T, e *echo.Echo, objType string, objID string) string
 			c.SetPath(fmt.Sprintf("/%s/:id", objType))
 			c.SetParamNames("id")
 			c.SetParamValues(objID)
+		},
+	})
+	require.Equal(t, http.StatusOK, rec.Code)
+	return rec.Body.String()
+}
+
+func getAllObjs(t *testing.T, e *echo.Echo, objType string) string {
+	rec := executeRequest(t, e, RequestInfo{
+		method:         http.MethodGet,
+		uri:            "/" + objType,
+		payload:        "",
+		middlewareFunc: nil,
+		handlerFunc:    handler.ModelGetAllHandler,
+		ctxInit: func(c echo.Context) {
+			c.SetPath(fmt.Sprintf("/%s", objType))
 		},
 	})
 	require.Equal(t, http.StatusOK, rec.Code)

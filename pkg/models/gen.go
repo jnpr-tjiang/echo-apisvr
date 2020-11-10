@@ -38,6 +38,12 @@ func (entity *Domain) BaseModel() *BaseModel {
 	return &entity.Base
 }
 
+// Find entities that meets certain conditions
+func (entity *Domain) Find(db *gorm.DB, conds ...interface{}) ([]Entity, error) {
+	var entities []Domain
+	return findEntity(db, &entities, conds...)
+}
+
 // BeforeCreate to validate and set default
 func (entity *Domain) BeforeCreate(tx *gorm.DB) error {
 	return entity.Base.preCreate(tx, entity)
@@ -54,6 +60,12 @@ type Project struct {
 // BaseModel returns the reference to the base model
 func (entity *Project) BaseModel() *BaseModel {
 	return &entity.Base
+}
+
+// Find entities that meets certain conditions
+func (entity *Project) Find(db *gorm.DB, conds ...interface{}) ([]Entity, error) {
+	var entities []Project
+	return findEntity(db, &entities, conds...)
 }
 
 // BeforeCreate to validate and set default
@@ -73,6 +85,12 @@ func (entity *Devicefamily) BaseModel() *BaseModel {
 	return &entity.Base
 }
 
+// Find entities that meets certain conditions
+func (entity *Devicefamily) Find(db *gorm.DB, conds ...interface{}) ([]Entity, error) {
+	var entities []Devicefamily
+	return findEntity(db, &entities, conds...)
+}
+
 // BeforeCreate to validate and set default
 func (entity *Devicefamily) BeforeCreate(tx *gorm.DB) error {
 	return entity.Base.preCreate(tx, entity)
@@ -88,6 +106,12 @@ type Device struct {
 // BaseModel returns the reference to the base model
 func (entity *Device) BaseModel() *BaseModel {
 	return &entity.Base
+}
+
+// Find entities that meets certain conditions
+func (entity *Device) Find(db *gorm.DB, conds ...interface{}) ([]Entity, error) {
+	var entities []Device
+	return findEntity(db, &entities, conds...)
 }
 
 // BeforeCreate to validate and set default

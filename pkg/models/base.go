@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/google/uuid"
@@ -28,6 +29,7 @@ type (
 	// Entity is base interface for all models
 	Entity interface {
 		BaseModel() *BaseModel
+		Find(db *gorm.DB, conds ...interface{}) ([]Entity, error)
 	}
 
 	modelInfo struct {
@@ -44,6 +46,22 @@ var (
 
 func register(modelType string, info modelInfo) {
 	models[modelType] = info
+}
+
+func findEntity(db *gorm.DB, dest interface{}, conds ...interface{}) ([]Entity, error) {
+	if err := db.Find(dest, conds...).Error; err != nil {
+		return []Entity{}, err
+	}
+	s := reflect.ValueOf(dest).Elem()
+	if s.Kind() != reflect.Slice {
+		return nil, fmt.Errorf("dest must be an slice")
+	}
+
+	entities := make([]Entity, s.Len(), s.Len())
+	for i := 0; i < s.Len(); i++ {
+		entities[i] = s.Index(i).Addr().Interface().(Entity)
+	}
+	return entities, nil
 }
 
 // NewEntity is the factory function to construct a new entity by type
