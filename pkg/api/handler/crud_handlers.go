@@ -9,8 +9,70 @@ import (
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/database"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/models"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/models/custom"
+	"github.com/jnpr-tjiang/echo-apisvr/pkg/utils"
 	"github.com/labstack/echo"
+	"gorm.io/gorm"
 )
+
+type payloadCfg struct {
+	showDetails  bool
+	strictFields bool
+	fields       []string
+	showRefs     bool
+	showBackRefs bool
+	showChildren bool
+}
+
+func getPayloadCfg(c echo.Context) payloadCfg {
+	cfg := payloadCfg{
+		showDetails:  true,
+		strictFields: false,
+		showRefs:     false,
+		showBackRefs: false,
+		showChildren: false,
+	}
+
+	var queryParams map[string][]string
+	queryParams = c.QueryParams()
+	if strings.Index(c.Path(), ":id") < 0 {
+		if details, ok := queryParams["detail"]; ok && len(details) == 1 && details[0] == "true" {
+			cfg.showDetails = true
+		} else {
+			cfg.showDetails = false
+		}
+	} else {
+		if _, ok := queryParams["strict_fields"]; ok {
+			cfg.strictFields = true
+		}
+		if fields, ok := queryParams["fields"]; ok {
+			cfg.fields = fields
+			// TODO: add logic to handle ref and child fields
+		} else {
+			if excludeRefs, ok := queryParams["exclude_refs"]; ok && len(excludeRefs) == 1 && excludeRefs[0] == "false" {
+				cfg.showRefs = true
+			}
+			if excludeBackRefs, ok := queryParams["exclude_back_refs"]; ok && len(excludeBackRefs) == 1 && excludeBackRefs[0] == "false" {
+				cfg.showBackRefs = true
+			}
+			if excludeChildren, ok := queryParams["exclude_children"]; ok && len(excludeChildren) == 1 && excludeChildren[0] == "false" {
+				cfg.showChildren = true
+			}
+		}
+	}
+	return cfg
+}
+
+func buildEntityPayload(db *gorm.DB, entity models.Entity, cfg payloadCfg) ([]byte, error) {
+	if !cfg.showDetails {
+		uuid := entity.BaseModel().ID.String()
+		payload := fmt.Sprintf(
+			`{"fq_name":%s,"uuid":"%s","uri":"/%s/%s"}`,
+			entity.BaseModel().FQName, uuid, strings.ToLower(utils.TypeOf(entity)), uuid)
+		return []byte(payload), nil
+	}
+
+	return entity.BaseModel().Payload, nil
+}
 
 // ModelCreateHandler for request to create a model entity
 func ModelCreateHandler(c echo.Context) error {
@@ -56,7 +118,11 @@ func ModelGetAllHandler(c echo.Context) error {
 	}
 	body := []byte(fmt.Sprintf(`{"total": %d, "%s": [`, len(entities), entityType))
 	for i, v := range entities {
-		body = append(body, v.BaseModel().Payload...)
+		payload, err := buildEntityPayload(db, v, getPayloadCfg(c))
+		if err != nil {
+			return err
+		}
+		body = append(body, payload...)
 		if (i + 1) != len(entities) {
 			body = append(body, ","...)
 		}

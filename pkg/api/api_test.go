@@ -118,27 +118,49 @@ func TestGetAll(t *testing.T) {
 	// domain CRUD
 	id1 := createObj(t, e, "domain", `{"name": "domain_1"}`)
 	id2 := createObj(t, e, "domain", `{"name": "domain_2"}`)
-	result := getAllObjs(t, e, "domain")
-	t.Log(result)
+
+	// default
+	result := getAllObjs(t, e, "domain", false)
 	want := fmt.Sprintf(`{
 		"total": 2,
 		"domain": [
 			{
-				"name":"domain_1",
-				"display_name":"domain_1",
 				"fq_name": ["domain_1"],
 				"uri":"/domain/%s",
 				"uuid":"%s"
 			},
 			{
-				"name":"domain_2",
-				"display_name":"domain_2",
 				"fq_name": ["domain_2"],
 				"uri":"/domain/%s",
 				"uuid":"%s"
 			}
 		]
 	}`, id1, id1, id2, id2)
+	require.JSONEq(t, want, result)
+
+	// detail=true
+	result = getAllObjs(t, e, "domain", true)
+	want = fmt.Sprintf(`{
+		"total": 2,
+		"domain": [
+			{
+				"name": "domain_1",
+				"display_name": "domain_1",
+				"fq_name": ["domain_1"],
+				"uri":"/domain/%s",
+				"uuid":"%s"
+			},
+			{
+				"name": "domain_2",
+				"display_name": "domain_2",
+				"fq_name": ["domain_2"],
+				"uri":"/domain/%s",
+				"uuid":"%s"
+			}
+		]
+	}`, id1, id1, id2, id2)
+	t.Logf("want:\n%s\n", want)
+	t.Logf("actual:\n%s\n", result)
 	require.JSONEq(t, want, result)
 }
 
@@ -185,10 +207,14 @@ func getObjByID(t *testing.T, e *echo.Echo, objType string, objID string) string
 	return rec.Body.String()
 }
 
-func getAllObjs(t *testing.T, e *echo.Echo, objType string) string {
+func getAllObjs(t *testing.T, e *echo.Echo, objType string, detail bool) string {
+	uri := "/" + objType
+	if detail {
+		uri += "?detail=true"
+	}
 	rec := executeRequest(t, e, RequestInfo{
 		method:         http.MethodGet,
-		uri:            "/" + objType,
+		uri:            uri,
 		payload:        "",
 		middlewareFunc: nil,
 		handlerFunc:    handler.ModelGetAllHandler,
