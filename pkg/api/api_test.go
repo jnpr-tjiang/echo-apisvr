@@ -38,7 +38,7 @@ func TestBasicCRUD(t *testing.T) {
 
 	// domain CRUD
 	domainID := createObj(t, e, "domain", `{"name": "default"}`)
-	result := getObjByID(t, e, "domain", domainID)
+	result := getObjByID(t, e, "domain", domainID, handler.PayloadCfg{})
 	want := fmt.Sprintf(`{
 		"domain": {
 			"name":"default",
@@ -52,7 +52,7 @@ func TestBasicCRUD(t *testing.T) {
 
 	// project CRUD
 	projectID := createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
-	result = getObjByID(t, e, "project", projectID)
+	result = getObjByID(t, e, "project", projectID, handler.PayloadCfg{})
 	want = fmt.Sprintf(`{
 			"project": {
 				"name":"juniper",
@@ -78,7 +78,7 @@ func TestBasicCRUD(t *testing.T) {
 		},
 		"connection_type": "CSP_INITIATED"
 	}`)
-	result = getObjByID(t, e, "device", deviceID)
+	result = getObjByID(t, e, "device", deviceID, handler.PayloadCfg{})
 	want = fmt.Sprintf(`{
 			"device": {
 				"name": "junos",
@@ -164,6 +164,48 @@ func TestGetAll(t *testing.T) {
 	require.JSONEq(t, want, result)
 }
 
+func TestFieldFilter(t *testing.T) {
+	e := setupTestcase(t)
+
+	createObj(t, e, "domain", `{"name": "default"}`)
+	projectID := createObj(t, e, "project", `{
+		"name": "juniper", 
+		"fq_name": ["default", "juniper"], 
+		"display_name": "Juniper Networks"}`)
+	deviceID := createObj(t, e, "device", `{
+		"name": "junos",
+		"fq_name": ["default", "juniper", "junos"],
+		"region": "(510)386-1943",
+		"dic_op_info": {
+			"detected_dic_ip": "10.1.1.2",
+			"last_detection_timestamp": 13232233.775
+		},
+		"connection_type": "CSP_INITIATED"}`)
+
+	result := getObjByID(t, e, "device", deviceID, handler.PayloadCfg{
+		StrictFields: true,
+		Fields:       []string{"connection_type"},
+	})
+	want := fmt.Sprintf(`{
+			"device": {
+				"name": "junos",
+				"uri": "/device/%s",
+				"uuid": "%s",
+				"fq_name": [
+					"default",
+					"juniper",
+					"junos"
+				],
+				"parent_uri": "/project/%s",
+				"parent_type": "project",
+				"parent_uuid": "%s",
+				"display_name": "junos",
+				"connection_type": "CSP_INITIATED"
+			}
+		}`, deviceID, deviceID, projectID, projectID)
+	require.JSONEq(t, want, result)
+}
+
 type RequestInfo struct {
 	method         string
 	uri            string
@@ -190,10 +232,41 @@ func createObj(t *testing.T, e *echo.Echo, objType string, payload string) strin
 	return domainID.String()
 }
 
-func getObjByID(t *testing.T, e *echo.Echo, objType string, objID string) string {
+func toQueryStr(cfg handler.PayloadCfg) string {
+	qstr := "?"
+	if cfg.ShowDetails {
+		qstr += "detail=true&"
+	}
+	if cfg.StrictFields {
+		qstr += "strict_fields&"
+	}
+	if len(cfg.Fields) > 0 {
+		qstr += "fields="
+		for i, field := range cfg.Fields {
+			qstr += field
+			if (i + 1) < len(cfg.Fields) {
+				qstr += ","
+			} else {
+				qstr += "&"
+			}
+		}
+	}
+	if cfg.ShowRefs {
+		qstr += "exclude_refs=false&"
+	}
+	if cfg.ShowBackRefs {
+		qstr += "exclude_back_refs=false&"
+	}
+	if cfg.ShowChildren {
+		qstr += "exclude_children=false&"
+	}
+	return qstr
+}
+
+func getObjByID(t *testing.T, e *echo.Echo, objType string, objID string, cfg handler.PayloadCfg) string {
 	rec := executeRequest(t, e, RequestInfo{
 		method:         http.MethodGet,
-		uri:            fmt.Sprintf("/%s/%s", objType, objID),
+		uri:            fmt.Sprintf("/%s/%s%s", objType, objID, toQueryStr(cfg)),
 		payload:        "",
 		middlewareFunc: nil,
 		handlerFunc:    handler.ModelGetHandler,

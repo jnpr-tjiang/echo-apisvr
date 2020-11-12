@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -14,56 +15,77 @@ import (
 	"gorm.io/gorm"
 )
 
-type payloadCfg struct {
-	showDetails  bool
-	strictFields bool
-	fields       []string
-	showRefs     bool
-	showBackRefs bool
-	showChildren bool
+type PayloadCfg struct {
+	ShowDetails  bool
+	StrictFields bool
+	Fields       []string
+	ShowRefs     bool
+	ShowBackRefs bool
+	ShowChildren bool
 }
 
-func getPayloadCfg(c echo.Context) payloadCfg {
-	cfg := payloadCfg{
-		showDetails:  true,
-		strictFields: false,
-		showRefs:     false,
-		showBackRefs: false,
-		showChildren: false,
+func getPayloadCfg(c echo.Context) PayloadCfg {
+	cfg := PayloadCfg{
+		ShowDetails:  true,
+		StrictFields: false,
+		ShowRefs:     false,
+		ShowBackRefs: false,
+		ShowChildren: false,
 	}
 
 	var queryParams map[string][]string
 	queryParams = c.QueryParams()
 	if strings.Index(c.Path(), ":id") < 0 {
 		if details, ok := queryParams["detail"]; ok && len(details) == 1 && details[0] == "true" {
-			cfg.showDetails = true
+			cfg.ShowDetails = true
 		} else {
-			cfg.showDetails = false
+			cfg.ShowDetails = false
 		}
 	} else {
 		if _, ok := queryParams["strict_fields"]; ok {
-			cfg.strictFields = true
+			cfg.StrictFields = true
 		}
 		if fields, ok := queryParams["fields"]; ok {
-			cfg.fields = fields
+			cfg.Fields = fields
 			// TODO: add logic to handle ref and child fields
 		} else {
 			if excludeRefs, ok := queryParams["exclude_refs"]; ok && len(excludeRefs) == 1 && excludeRefs[0] == "false" {
-				cfg.showRefs = true
+				cfg.ShowRefs = true
 			}
 			if excludeBackRefs, ok := queryParams["exclude_back_refs"]; ok && len(excludeBackRefs) == 1 && excludeBackRefs[0] == "false" {
-				cfg.showBackRefs = true
+				cfg.ShowBackRefs = true
 			}
 			if excludeChildren, ok := queryParams["exclude_children"]; ok && len(excludeChildren) == 1 && excludeChildren[0] == "false" {
-				cfg.showChildren = true
+				cfg.ShowChildren = true
 			}
 		}
 	}
 	return cfg
 }
 
-func buildEntityPayload(db *gorm.DB, entity models.Entity, cfg payloadCfg) ([]byte, error) {
-	if !cfg.showDetails {
+func filterFields(payload []byte, fields []string) (map[string]interface{}, error) {
+	var jsonPayload map[string]interface{}
+	if len(fields) == 0 {
+		return jsonPayload, fmt.Errorf("Empty field list not allowed")
+	}
+	fields = append(
+		fields, "name", "display_name", "fq_name", "uuid", "uri",
+		"parent_uuid", "parent_uri", "parent_type")
+
+	if err := json.Unmarshal(payload, &jsonPayload); err != nil {
+		return jsonPayload, err
+	}
+	filteredPayload := make(map[string]interface{})
+	for _, field := range fields {
+		if v, ok := jsonPayload[field]; ok {
+			filteredPayload[field] = v
+		}
+	}
+	return filteredPayload, nil
+}
+
+func buildEntityPayload(db *gorm.DB, entity models.Entity, cfg PayloadCfg) (payload []byte, err error) {
+	if !cfg.ShowDetails {
 		uuid := entity.BaseModel().ID.String()
 		payload := fmt.Sprintf(
 			`{"fq_name":%s,"uuid":"%s","uri":"/%s/%s"}`,
@@ -71,6 +93,24 @@ func buildEntityPayload(db *gorm.DB, entity models.Entity, cfg payloadCfg) ([]by
 		return []byte(payload), nil
 	}
 
+	var jsonPayload map[string]interface{}
+	if cfg.StrictFields && len(cfg.Fields) > 0 {
+		if jsonPayload, err = filterFields(entity.BaseModel().Payload, cfg.Fields); err != nil {
+			return []byte{}, err
+		}
+	}
+	if cfg.ShowRefs {
+
+	}
+	if cfg.ShowBackRefs {
+
+	}
+	if cfg.ShowChildren {
+
+	}
+	if len(jsonPayload) > 0 {
+		return json.Marshal(jsonPayload)
+	}
 	return entity.BaseModel().Payload, nil
 }
 
@@ -146,8 +186,13 @@ func ModelGetHandler(c echo.Context) error {
 	if err = db.First(entity, uuid).Error; err != nil {
 		return err
 	}
+
+	payload, err := buildEntityPayload(db, entity, getPayloadCfg(c))
+	if err != nil {
+		return err
+	}
 	body := []byte(fmt.Sprintf(`{"%s":`, entityType))
-	body = append(body, entity.BaseModel().Payload...)
+	body = append(body, payload...)
 	body = append(body, []byte("}")...)
 	return c.Blob(http.StatusOK, echo.MIMEApplicationJSON, body)
 }
