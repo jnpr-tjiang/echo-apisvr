@@ -37,8 +37,11 @@ func TestBasicCRUD(t *testing.T) {
 	e := setupTestcase(t)
 
 	// domain CRUD
-	domainID := createObj(t, e, "domain", `{"name": "default"}`)
-	result := getObjByID(t, e, "domain", domainID, handler.PayloadCfg{})
+	status, domainID := createObj(t, e, "domain", `{"name": "default"}`)
+	require.Equal(t, http.StatusCreated, status)
+
+	status, result := getObjByID(t, e, "domain", domainID, handler.PayloadCfg{})
+	require.Equal(t, http.StatusOK, status)
 	want := fmt.Sprintf(`{
 		"domain": {
 			"name":"default",
@@ -51,8 +54,11 @@ func TestBasicCRUD(t *testing.T) {
 	require.JSONEq(t, want, result)
 
 	// project CRUD
-	projectID := createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
-	result = getObjByID(t, e, "project", projectID, handler.PayloadCfg{})
+	status, projectID := createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
+	require.Equal(t, http.StatusCreated, status)
+
+	status, result = getObjByID(t, e, "project", projectID, handler.PayloadCfg{})
+	require.Equal(t, http.StatusOK, status)
 	want = fmt.Sprintf(`{
 			"project": {
 				"name":"juniper",
@@ -68,7 +74,7 @@ func TestBasicCRUD(t *testing.T) {
 	require.JSONEq(t, want, result)
 
 	// device
-	deviceID := createObj(t, e, "device", `{
+	status, deviceID := createObj(t, e, "device", `{
 		"name": "junos",
 		"fq_name": ["default", "juniper", "junos"],
 		"region": "(510)386-1943",
@@ -78,7 +84,9 @@ func TestBasicCRUD(t *testing.T) {
 		},
 		"connection_type": "CSP_INITIATED"
 	}`)
-	result = getObjByID(t, e, "device", deviceID, handler.PayloadCfg{})
+	require.Equal(t, http.StatusCreated, status)
+	status, result = getObjByID(t, e, "device", deviceID, handler.PayloadCfg{})
+	require.Equal(t, http.StatusOK, status)
 	want = fmt.Sprintf(`{
 			"device": {
 				"name": "junos",
@@ -104,11 +112,14 @@ func TestBasicCRUD(t *testing.T) {
 	require.JSONEq(t, want, result)
 
 	// deletion
-	result = deleteObj(t, e, "device", deviceID)
+	status, result = deleteObj(t, e, "device", deviceID)
+	require.Equal(t, http.StatusOK, status)
 	require.Equal(t, deviceID, result)
-	result = deleteObj(t, e, "project", projectID)
+	status, result = deleteObj(t, e, "project", projectID)
+	require.Equal(t, http.StatusOK, status)
 	require.Equal(t, projectID, result)
-	result = deleteObj(t, e, "domain", domainID)
+	status, result = deleteObj(t, e, "domain", domainID)
+	require.Equal(t, http.StatusOK, status)
 	require.Equal(t, domainID, result)
 }
 
@@ -116,11 +127,12 @@ func TestGetAll(t *testing.T) {
 	e := setupTestcase(t)
 
 	// domain CRUD
-	id1 := createObj(t, e, "domain", `{"name": "domain_1"}`)
-	id2 := createObj(t, e, "domain", `{"name": "domain_2"}`)
+	_, id1 := createObj(t, e, "domain", `{"name": "domain_1"}`)
+	_, id2 := createObj(t, e, "domain", `{"name": "domain_2"}`)
 
 	// default
-	result := getAllObjs(t, e, "domain", false)
+	status, result := getAllObjs(t, e, "domain", false)
+	require.Equal(t, http.StatusOK, status)
 	want := fmt.Sprintf(`{
 		"total": 2,
 		"domain": [
@@ -139,7 +151,8 @@ func TestGetAll(t *testing.T) {
 	require.JSONEq(t, want, result)
 
 	// detail=true
-	result = getAllObjs(t, e, "domain", true)
+	status, result = getAllObjs(t, e, "domain", true)
+	require.Equal(t, http.StatusOK, status)
 	want = fmt.Sprintf(`{
 		"total": 2,
 		"domain": [
@@ -168,11 +181,11 @@ func TestFieldFilter(t *testing.T) {
 	e := setupTestcase(t)
 
 	createObj(t, e, "domain", `{"name": "default"}`)
-	projectID := createObj(t, e, "project", `{
+	_, projectID := createObj(t, e, "project", `{
 		"name": "juniper", 
 		"fq_name": ["default", "juniper"], 
 		"display_name": "Juniper Networks"}`)
-	deviceID := createObj(t, e, "device", `{
+	_, deviceID := createObj(t, e, "device", `{
 		"name": "junos",
 		"fq_name": ["default", "juniper", "junos"],
 		"region": "(510)386-1943",
@@ -182,10 +195,11 @@ func TestFieldFilter(t *testing.T) {
 		},
 		"connection_type": "CSP_INITIATED"}`)
 
-	result := getObjByID(t, e, "device", deviceID, handler.PayloadCfg{
+	status, result := getObjByID(t, e, "device", deviceID, handler.PayloadCfg{
 		StrictFields: true,
 		Fields:       []string{"connection_type"},
 	})
+	require.Equal(t, http.StatusOK, status)
 	want := fmt.Sprintf(`{
 			"device": {
 				"name": "junos",
@@ -206,6 +220,38 @@ func TestFieldFilter(t *testing.T) {
 	require.JSONEq(t, want, result)
 }
 
+func TestMultiParent(t *testing.T) {
+	e := setupTestcase(t)
+
+	// domain CRUD
+	createObj(t, e, "domain", `{"name": "default"}`)
+	createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
+
+	// device
+	status, _ := createObj(t, e, "device", `{
+		"name": "mx",
+		"fq_name": ["default", "mx"],
+		"parent_type": "domain",
+		"region": "(800)386-1943",
+		"dic_op_info": {
+			"detected_dic_ip": "10.1.1.1",
+			"last_detection_timestamp": 13232233.775
+		},
+		"connection_type": "CSP_INITIATED"}`)
+	require.Equal(t, http.StatusCreated, status)
+	status, _ = createObj(t, e, "device", `{
+		"name": "srx",
+		"fq_name": ["default", "juniper", "srx"],
+		"parent_type": "project",
+		"region": "(800)331-5527",
+		"dic_op_info": {
+			"detected_dic_ip": "10.1.1.2",
+			"last_detection_timestamp": 13232233.775
+		},
+		"connection_type": "CSP_INITIATED"}`)
+	require.Equal(t, http.StatusCreated, status)
+}
+
 type RequestInfo struct {
 	method         string
 	uri            string
@@ -215,7 +261,7 @@ type RequestInfo struct {
 	ctxInit        func(c echo.Context)
 }
 
-func createObj(t *testing.T, e *echo.Echo, objType string, payload string) string {
+func createObj(t *testing.T, e *echo.Echo, objType string, payload string) (int, string) {
 	rec := executeRequest(t, e, RequestInfo{
 		method:         http.MethodPost,
 		uri:            "/" + objType,
@@ -226,10 +272,15 @@ func createObj(t *testing.T, e *echo.Echo, objType string, payload string) strin
 			c.SetPath(fmt.Sprintf("/%s", objType))
 		},
 	})
-	require.Equal(t, http.StatusCreated, rec.Code)
-	domainID, err := uuid.Parse(rec.Body.String())
-	require.NoError(t, err)
-	return domainID.String()
+	var (
+		domainID uuid.UUID
+		err      error
+	)
+	if rec.Code == http.StatusCreated {
+		domainID, err = uuid.Parse(rec.Body.String())
+		require.NoError(t, err)
+	}
+	return rec.Code, domainID.String()
 }
 
 func toQueryStr(cfg handler.PayloadCfg) string {
@@ -263,7 +314,7 @@ func toQueryStr(cfg handler.PayloadCfg) string {
 	return qstr
 }
 
-func getObjByID(t *testing.T, e *echo.Echo, objType string, objID string, cfg handler.PayloadCfg) string {
+func getObjByID(t *testing.T, e *echo.Echo, objType string, objID string, cfg handler.PayloadCfg) (int, string) {
 	rec := executeRequest(t, e, RequestInfo{
 		method:         http.MethodGet,
 		uri:            fmt.Sprintf("/%s/%s%s", objType, objID, toQueryStr(cfg)),
@@ -276,11 +327,10 @@ func getObjByID(t *testing.T, e *echo.Echo, objType string, objID string, cfg ha
 			c.SetParamValues(objID)
 		},
 	})
-	require.Equal(t, http.StatusOK, rec.Code)
-	return rec.Body.String()
+	return http.StatusOK, rec.Body.String()
 }
 
-func getAllObjs(t *testing.T, e *echo.Echo, objType string, detail bool) string {
+func getAllObjs(t *testing.T, e *echo.Echo, objType string, detail bool) (int, string) {
 	uri := "/" + objType
 	if detail {
 		uri += "?detail=true"
@@ -295,11 +345,10 @@ func getAllObjs(t *testing.T, e *echo.Echo, objType string, detail bool) string 
 			c.SetPath(fmt.Sprintf("/%s", objType))
 		},
 	})
-	require.Equal(t, http.StatusOK, rec.Code)
-	return rec.Body.String()
+	return rec.Code, rec.Body.String()
 }
 
-func deleteObj(t *testing.T, e *echo.Echo, objType string, objID string) string {
+func deleteObj(t *testing.T, e *echo.Echo, objType string, objID string) (int, string) {
 	rec := executeRequest(t, e, RequestInfo{
 		method:         http.MethodDelete,
 		uri:            fmt.Sprintf("/%s/%s", objType, objID),
@@ -312,8 +361,7 @@ func deleteObj(t *testing.T, e *echo.Echo, objType string, objID string) string 
 			c.SetParamValues(objID)
 		},
 	})
-	require.Equal(t, http.StatusOK, rec.Code)
-	return rec.Body.String()
+	return rec.Code, rec.Body.String()
 }
 
 func setupTestcase(t *testing.T) *echo.Echo {

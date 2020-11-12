@@ -20,7 +20,7 @@ type (
 		Name        string                  `gorm:"column:name;size:128;not null;<-:create"`
 		DisplayName string                  `gorm:"column:display_name;size:128;not null"`
 		ParentID    uuid.UUID               `gorm:"column:parent_id;type:uuid"`
-		ParentType  string                  `gorm:"column:parent_type`
+		ParentType  string                  `gorm:"column:parent_type"`
 		FQName      string                  `gorm:"column:fqname;not null;uniqueIndex"`
 		Payload     datatypes.JSON          `gorm:"column:payload"`
 		JSON        *map[string]interface{} `gorm:"-"`

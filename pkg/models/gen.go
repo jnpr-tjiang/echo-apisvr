@@ -15,7 +15,7 @@ func Init() error {
 		constructor:        func() Entity { return &Project{} },
 	})
 	register("device", modelInfo{
-		allowedParentTypes: []string{"project"},
+		allowedParentTypes: []string{"project", "domain"},
 		constructor:        func() Entity { return &Device{} },
 	})
 	register("devicefamily", modelInfo{
@@ -31,6 +31,7 @@ type Domain struct {
 	Base BaseModel `gorm:"embedded"`
 	// Has-Many relations
 	Projects []Project `gorm:"foreignKey:ParentID;references:ID"`
+	Devices  []Device  `gorm:"foreignKey:ParentID;references:ID"`
 }
 
 // BaseModel returns the reference to the base model
