@@ -33,19 +33,98 @@ type (
 	}
 
 	modelInfo struct {
-		allowedParentTypes []string
-		constructor        func() Entity
+		parentTypes  []string
+		childTypes   []string
+		refTypes     []string
+		backRefTypes []string
 	}
 )
 
 var (
 	// EmptyUUID for empty UUID
-	EmptyUUID uuid.UUID            = uuid.UUID{}
-	models    map[string]modelInfo = make(map[string]modelInfo)
+	EmptyUUID  uuid.UUID             = uuid.UUID{}
+	models     map[string]*modelInfo = make(map[string]*modelInfo)
+	modelNames []string
 )
 
-func register(modelType string, info modelInfo) {
-	models[modelType] = info
+func init() {
+	modelNames = make([]string, len(constructors))
+	i := 0
+	for k := range constructors {
+		modelNames[i] = k
+		i++
+	}
+
+	for k, v := range constructors {
+		entity := v()
+		parentTypes, refTypes, err := reflectEntity(entity)
+		if err != nil {
+			panic(err)
+		}
+
+		model := modelInfo{}
+		model.parentTypes = parentTypes
+		model.refTypes = refTypes
+		models[k] = &model
+	}
+
+	for entityType, model := range models {
+		for _, parentType := range model.parentTypes {
+			parentModel, ok := models[parentType]
+			if !ok {
+				panic(fmt.Sprintf("[%s] Invalid parent type: %s", entityType, parentType))
+			}
+			parentModel.childTypes = append(parentModel.childTypes, entityType)
+		}
+		for _, refType := range model.refTypes {
+			refModel, ok := models[refType]
+			if !ok {
+				panic(fmt.Sprintf("[%s] Invalid ref type: %s", entityType, refType))
+			}
+			refModel.backRefTypes = append(refModel.backRefTypes, entityType)
+		}
+	}
+}
+
+func reflectEntity(entity Entity) (parentTypes []string, refTypes []string, err error) {
+	entityType := reflect.TypeOf(entity).Elem()
+
+	baseField, ok := entityType.FieldByName("Base")
+	if !ok {
+		return []string{}, []string{}, fmt.Errorf("Base field not found in entity: %s", entityType.Name())
+	}
+	if baseField.Type.Name() != "BaseModel" {
+		return []string{}, []string{}, fmt.Errorf("Base field must be BaseModel type: %s", entityType.Name())
+	}
+	if v, ok := baseField.Tag.Lookup("parentTypes"); ok {
+		parentTypes = strings.Split(v, ",")
+		for i := 0; i < len(parentTypes); i++ {
+			if utils.IndexOf(modelNames, parentTypes[i]) < 0 {
+				return []string{}, []string{}, fmt.Errorf("[%s] Invalid parent type: %s", entityType.Name(), parentTypes[i])
+			}
+		}
+	}
+
+	for i := 0; i < entityType.NumField(); i++ {
+		field := entityType.Field(i)
+		if field.Type.Name() != "BaseModel" {
+			if v, ok := field.Tag.Lookup("gorm"); ok {
+				gormDirectives := strings.Split(v, ";")
+				for _, directive := range gormDirectives {
+					if strings.Index(strings.Trim(directive, " "), "many2many") >= 0 {
+						refTypes = append(refTypes, utils.Singularize(strings.ToLower(field.Name)))
+					}
+				}
+			}
+		}
+	}
+	for i := 0; i < len(refTypes); i++ {
+		if utils.IndexOf(modelNames, refTypes[i]) < 0 {
+			return []string{}, []string{}, fmt.Errorf("[%s] Invalid ref type: %s", entityType.Name(), refTypes[i])
+		}
+	}
+
+	return parentTypes, refTypes, nil
 }
 
 func findEntity(db *gorm.DB, dest interface{}, conds ...interface{}) ([]Entity, error) {
@@ -66,25 +145,16 @@ func findEntity(db *gorm.DB, dest interface{}, conds ...interface{}) ([]Entity, 
 
 // NewEntity is the factory function to construct a new entity by type
 func NewEntity(entityType string) (Entity, error) {
-	m, ok := models[entityType]
+	c, ok := constructors[entityType]
 	if !ok {
 		return nil, fmt.Errorf("Invalid Entity type: " + entityType)
 	}
-	if m.constructor == nil {
-		return nil, fmt.Errorf("Entity constructor not found: " + entityType)
-	}
-	return m.constructor(), nil
+	return c(), nil
 }
 
 // ModelNames returns names for all registered models
 func ModelNames() []string {
-	names := make([]string, len(models))
-	i := 0
-	for k := range models {
-		names[i] = k
-		i++
-	}
-	return names
+	return modelNames
 }
 
 func (b *BaseModel) preCreate(tx *gorm.DB, obj Entity) (err error) {
@@ -109,10 +179,10 @@ func (b *BaseModel) preCreate(tx *gorm.DB, obj Entity) (err error) {
 	if !ok {
 		return fmt.Errorf("Model not supported: %s", objType)
 	}
-	if b.ParentType == "" && len(m.allowedParentTypes) > 0 {
-		b.ParentType = m.allowedParentTypes[0]
+	if b.ParentType == "" && len(m.parentTypes) > 0 {
+		b.ParentType = m.parentTypes[0]
 	}
-	if _, ok = utils.Find(m.allowedParentTypes, b.ParentType); b.ParentType != "" && !ok {
+	if idx := utils.IndexOf(m.parentTypes, b.ParentType); b.ParentType != "" && idx < 0 {
 		return fmt.Errorf("Invalid parent type: %s", b.ParentType)
 	}
 

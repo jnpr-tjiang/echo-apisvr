@@ -14,7 +14,6 @@ import (
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/config"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/database"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/middleware"
-	"github.com/jnpr-tjiang/echo-apisvr/pkg/models"
 	"github.com/labstack/echo"
 	"github.com/stretchr/testify/require"
 )
@@ -77,6 +76,7 @@ func TestBasicCRUD(t *testing.T) {
 	status, deviceID := createObj(t, e, "device", `{
 		"name": "junos",
 		"fq_name": ["default", "juniper", "junos"],
+		"parent_type": "project",
 		"region": "(510)386-1943",
 		"dic_op_info": {
 			"detected_dic_ip": "10.1.1.2",
@@ -188,6 +188,7 @@ func TestFieldFilter(t *testing.T) {
 	_, deviceID := createObj(t, e, "device", `{
 		"name": "junos",
 		"fq_name": ["default", "juniper", "junos"],
+		"parent_type": "project",
 		"region": "(510)386-1943",
 		"dic_op_info": {
 			"detected_dic_ip": "10.1.1.2",
@@ -220,7 +221,7 @@ func TestFieldFilter(t *testing.T) {
 	require.JSONEq(t, want, result)
 }
 
-func TestMultiParent(t *testing.T) {
+func TestMultiParentTypes(t *testing.T) {
 	e := setupTestcase(t)
 
 	// domain CRUD
@@ -375,7 +376,6 @@ func setupTestcase(t *testing.T) *echo.Echo {
 	e.Debug = true
 	_, err := database.Init(cfg)
 	require.NoError(t, err)
-	require.NoError(t, models.Init())
 	route.AddCRUDRoutes(e)
 	return e
 }

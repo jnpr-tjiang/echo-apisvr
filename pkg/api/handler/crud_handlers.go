@@ -100,19 +100,24 @@ func buildEntityPayload(db *gorm.DB, entity models.Entity, cfg PayloadCfg) (payl
 		}
 	}
 	if cfg.ShowRefs {
-
 	}
 	if cfg.ShowBackRefs {
-
 	}
 	if cfg.ShowChildren {
-
+		// children := buildChildrenRefs(db, entity)
+		// for k, v := range children {
+		// 	jsonPayload[k] = v
+		// }
 	}
 	if len(jsonPayload) > 0 {
 		return json.Marshal(jsonPayload)
 	}
 	return entity.BaseModel().Payload, nil
 }
+
+// func buildChildrenRefs(db *gorm.DB, entity models.Entity) map[string]interface{} {
+// 	childTypes := models.GetChildTypes(entity)
+// }
 
 // ModelCreateHandler for request to create a model entity
 func ModelCreateHandler(c echo.Context) error {

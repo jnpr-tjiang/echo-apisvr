@@ -1,10 +1,10 @@
 package utils
 
-func Find(s []string, str string) (int, bool) {
+func IndexOf(s []string, str string) int {
 	for i, v := range s {
 		if v == str {
-			return i, true
+			return i
 		}
 	}
-	return -1, false
+	return -1
 }

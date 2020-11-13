@@ -4,34 +4,16 @@ import (
 	"gorm.io/gorm"
 )
 
-// Init the data model's meta info
-func Init() error {
-	register("domain", modelInfo{
-		allowedParentTypes: []string{},
-		constructor:        func() Entity { return &Domain{} },
-	})
-	register("project", modelInfo{
-		allowedParentTypes: []string{"domain"},
-		constructor:        func() Entity { return &Project{} },
-	})
-	register("device", modelInfo{
-		allowedParentTypes: []string{"project", "domain"},
-		constructor:        func() Entity { return &Device{} },
-	})
-	register("devicefamily", modelInfo{
-		allowedParentTypes: []string{"project"},
-		constructor:        func() Entity { return &Devicefamily{} },
-	})
-
-	return nil
+var constructors map[string]func() Entity = map[string]func() Entity{
+	"domain":       func() Entity { return &Domain{} },
+	"project":      func() Entity { return &Project{} },
+	"device":       func() Entity { return &Device{} },
+	"devicefamily": func() Entity { return &Devicefamily{} },
 }
 
 // Domain -----------------------------------------------------------------
 type Domain struct {
 	Base BaseModel `gorm:"embedded"`
-	// Has-Many relations
-	Projects []Project `gorm:"foreignKey:ParentID;references:ID"`
-	Devices  []Device  `gorm:"foreignKey:ParentID;references:ID"`
 }
 
 // BaseModel returns the reference to the base model
@@ -52,10 +34,7 @@ func (entity *Domain) BeforeCreate(tx *gorm.DB) error {
 
 // Project -----------------------------------------------------------------
 type Project struct {
-	Base BaseModel `gorm:"embedded"`
-	// Has-Many relations
-	Devices        []Device       `gorm:"foreignKey:ParentID;references:ID"`
-	DeviceFamilies []Devicefamily `gorm:"foreignKey:ParentID;references:ID"`
+	Base BaseModel `gorm:"embedded" parentTypes:"domain"`
 }
 
 // BaseModel returns the reference to the base model
@@ -76,7 +55,8 @@ func (entity *Project) BeforeCreate(tx *gorm.DB) error {
 
 // Devicefamily -----------------------------------------------------------------
 type Devicefamily struct {
-	Base BaseModel `gorm:"embedded"`
+	Base BaseModel `gorm:"embedded" parentTypes:"project"`
+
 	// Many-Many relations
 	Devices []Device `gorm:"many2many:devicefamily_devices"`
 }
@@ -99,9 +79,7 @@ func (entity *Devicefamily) BeforeCreate(tx *gorm.DB) error {
 
 // Device -----------------------------------------------------------------
 type Device struct {
-	Base BaseModel `gorm:"embedded"`
-	// Many-Many relations
-	Devicefamilies []Devicefamily `gorm:"many2many:devicefamily_devices"`
+	Base BaseModel `gorm:"embedded" parentTypes:"domain,project"`
 }
 
 // BaseModel returns the reference to the base model

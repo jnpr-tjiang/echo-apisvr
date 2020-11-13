@@ -45,7 +45,6 @@ func Init(cfg *config.Configuration) (*gorm.DB, error) {
 	sqlDb.SetMaxOpenConns(cfg.Database.MaxOpenConns)
 	sqlDb.SetConnMaxLifetime(time.Duration(cfg.Database.MaxLifetime) * time.Second)
 
-	models.Init()
 	models.MigrateDataModel(db)
 
 	return db, nil

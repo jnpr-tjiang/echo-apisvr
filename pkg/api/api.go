@@ -5,7 +5,6 @@ import (
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/config"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/database"
 	m "github.com/jnpr-tjiang/echo-apisvr/pkg/middleware"
-	"github.com/jnpr-tjiang/echo-apisvr/pkg/models"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 )
@@ -17,11 +16,6 @@ func Run() {
 
 	// initialize database
 	if _, err := database.Init(config.GetConfig()); err != nil {
-		panic(err)
-	}
-
-	// init the data model
-	if err := models.Init(); err != nil {
 		panic(err)
 	}
 

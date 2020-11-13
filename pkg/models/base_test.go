@@ -7,7 +7,6 @@ import (
 )
 
 func TestBaseModel_New(t *testing.T) {
-	Init()
 	entity, err := NewEntity("domain")
 	if err != nil {
 		t.Error(err)
@@ -20,14 +19,13 @@ func TestBaseModel_New(t *testing.T) {
 }
 
 func TestBaseModel_ModelNames(t *testing.T) {
-	Init()
 	names := ModelNames()
 	want := []string{"domain", "project", "device", "devicefamily"}
 	if len(names) != len(want) {
 		t.Errorf("Expect %v but got %v", want, names)
 	}
 	for _, v := range names {
-		if _, ok := utils.Find(want, v); !ok {
+		if idx := utils.IndexOf(want, v); idx < 0 {
 			t.Errorf("Expect %v but got %v", want, names)
 		}
 	}
