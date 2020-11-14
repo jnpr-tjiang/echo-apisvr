@@ -12,9 +12,11 @@ import (
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/models/custom"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/utils"
 	"github.com/labstack/echo"
+	"github.com/labstack/gommon/log"
 	"gorm.io/gorm"
 )
 
+// PayloadCfg instructs how to build the payload
 type PayloadCfg struct {
 	ShowDetails  bool
 	StrictFields bool
@@ -22,6 +24,33 @@ type PayloadCfg struct {
 	ShowRefs     bool
 	ShowBackRefs bool
 	ShowChildren bool
+}
+
+func fieldsToShow(cfgFields []string, show bool, types []string) (fields []string) {
+	for _, refType := range types {
+		if utils.IndexOf(cfgFields, refType) >= 0 {
+			fields = append(fields, refType)
+		}
+	}
+	if show && len(fields) == 0 {
+		fields = types
+	}
+	return fields
+}
+
+// RefFieldsToShow returns all the ref fields to include in the payload
+func (cfg *PayloadCfg) RefFieldsToShow(modelInfo models.ModelInfo) (fields []string) {
+	return fieldsToShow(cfg.Fields, cfg.ShowRefs, modelInfo.RefTypes)
+}
+
+// BackRefFieldsToShow returns all the backref fields to include in the payload
+func (cfg *PayloadCfg) BackRefFieldsToShow(modelInfo models.ModelInfo) (fields []string) {
+	return fieldsToShow(cfg.Fields, cfg.ShowBackRefs, modelInfo.BackRefTypes)
+}
+
+// ChildFieldsToShow returns all the child fields to include in the payload
+func (cfg *PayloadCfg) ChildFieldsToShow(modelInfo models.ModelInfo) (fields []string) {
+	return fieldsToShow(cfg.Fields, cfg.ShowChildren, modelInfo.ChildTypes)
 }
 
 func getPayloadCfg(c echo.Context) PayloadCfg {
@@ -93,31 +122,82 @@ func buildEntityPayload(db *gorm.DB, entity models.Entity, cfg PayloadCfg) (payl
 		return []byte(payload), nil
 	}
 
-	var jsonPayload map[string]interface{}
+	modelInfo, ok := models.GetModelInfo(entity)
+	if !ok {
+		return []byte{}, fmt.Errorf("Failed to get model info for entity: %v", entity)
+	}
+
+	var filteredPayload map[string]interface{}
 	if cfg.StrictFields && len(cfg.Fields) > 0 {
-		if jsonPayload, err = filterFields(entity.BaseModel().Payload, cfg.Fields); err != nil {
+		if filteredPayload, err = filterFields(entity.BaseModel().Payload, cfg.Fields); err != nil {
 			return []byte{}, err
 		}
 	}
-	if cfg.ShowRefs {
+
+	fields := make(map[string]interface{})
+	refFieldsToShow := cfg.RefFieldsToShow(modelInfo)
+	if len(refFieldsToShow) > 0 {
 	}
-	if cfg.ShowBackRefs {
+	backRefFieldsToShow := cfg.BackRefFieldsToShow(modelInfo)
+	if len(backRefFieldsToShow) > 0 {
 	}
-	if cfg.ShowChildren {
-		// children := buildChildrenRefs(db, entity)
-		// for k, v := range children {
-		// 	jsonPayload[k] = v
-		// }
+	childFieldsToShow := cfg.ChildFieldsToShow(modelInfo)
+	if len(childFieldsToShow) > 0 {
+		children := buildChildrenRefs(db, entity, childFieldsToShow)
+		for k, v := range children {
+			fields[k] = v
+		}
 	}
-	if len(jsonPayload) > 0 {
-		return json.Marshal(jsonPayload)
+
+	if filteredPayload != nil && len(filteredPayload) > 0 {
+		for k, v := range fields {
+			filteredPayload[k] = v
+		}
+		return json.Marshal(filteredPayload)
+	} else {
+		payload := entity.BaseModel().Payload
+		if len(fields) > 0 {
+			payload[len(payload)-1] = ','
+			fieldJSON, err := json.Marshal(fields)
+			if err != nil {
+				return []byte{}, err
+			}
+			payload = append(payload, fieldJSON[1:]...)
+		}
+		return payload, nil
 	}
-	return entity.BaseModel().Payload, nil
 }
 
-// func buildChildrenRefs(db *gorm.DB, entity models.Entity) map[string]interface{} {
-// 	childTypes := models.GetChildTypes(entity)
-// }
+func buildChildrenRefs(db *gorm.DB, entity models.Entity, childFieldsToShow []string) map[string]interface{} {
+	childRefs := make(map[string]interface{})
+	for _, childType := range childFieldsToShow {
+		if childEntity, err := models.NewEntity(childType); err == nil {
+			children, err := childEntity.Find(
+				db.Select("ID", "fqname"), "parent_id = ? AND parent_type = ?",
+				entity.BaseModel().ID, strings.ToLower(utils.TypeOf(entity)))
+			if err != nil {
+				log.Errorf("DB error encounterd while querying the children: %v", err)
+			}
+			if len(children) > 0 {
+				childRefs[utils.Pluralize(childType)] = buildRefs(children)
+			}
+		}
+	}
+	return childRefs
+}
+
+func buildRefs(entities []models.Entity) []interface{} {
+	refs := make([]interface{}, len(entities))
+	for i, entity := range entities {
+		uuidStr := entity.BaseModel().ID.String()
+		entityType := strings.ToLower(utils.TypeOf(entity))
+		jsonStr := fmt.Sprintf(`{"to": %s, "uri": "/%s/%s", "uuid": "%s"}`, entity.BaseModel().FQName, entityType, uuidStr, uuidStr)
+		var refJSON interface{}
+		json.Unmarshal([]byte(jsonStr), &refJSON)
+		refs[i] = refJSON
+	}
+	return refs
+}
 
 // ModelCreateHandler for request to create a model entity
 func ModelCreateHandler(c echo.Context) error {

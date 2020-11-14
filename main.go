@@ -19,28 +19,6 @@ import (
 	"github.com/jnpr-tjiang/echo-apisvr/cmd"
 )
 
-type test struct {
-	msg string
-}
-
-func msg() string {
-	return "hello"
-}
-
 func main() {
-	// x := test{
-	// 	msg: msg(),
-	// }
-	// fmt.Println(x)
-	// var project models.Entity
-	// project = &models.Project{}
-	// t := reflect.TypeOf(project).Elem()
-	// for i := 0; i < t.NumField(); i++ {
-	// 	f := t.Field(i)
-	// 	if f.Type.Name() != "BaseModel" && f.Type.Kind().String() == "slice" {
-	// 		e := f.Type.Elem()
-	// 		fmt.Println(e.Name())
-	// 	}
-	// }
 	cmd.Execute()
 }

@@ -221,6 +221,99 @@ func TestFieldFilter(t *testing.T) {
 	require.JSONEq(t, want, result)
 }
 
+func TestShowChildren(t *testing.T) {
+	e := setupTestcase(t)
+
+	_, domainID := createObj(t, e, "domain", `{"name": "default", "test": "hello"}`)
+	_, projectID := createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
+	_, deviceID := createObj(t, e, "device", `{
+		"name": "mx",
+		"fq_name": ["default", "mx"],
+		"parent_type": "domain",
+		"region": "(800)386-1943",
+		"dic_op_info": {
+			"detected_dic_ip": "10.1.1.1",
+			"last_detection_timestamp": 13232233.775
+		},
+		"connection_type": "CSP_INITIATED"}`)
+
+	status, result := getObjByID(t, e, "domain", domainID, handler.PayloadCfg{
+		ShowChildren: true,
+	})
+	want := fmt.Sprintf(`{
+		"domain": {
+			"name":"default",
+			"display_name":"default",
+			"fq_name": ["default"],
+			"uri":"/domain/%s",
+			"uuid":"%s",
+			"test": "hello",
+			"projects": [
+				{
+					"uuid": "%s",
+					"uri": "/project/%s",
+					"to": ["default", "juniper"]
+				}
+			],
+			"devices": [
+				{
+					"uuid":  "%s",
+					"uri": "/device/%s",
+					"to": ["default", "mx"]
+				}
+			]
+		}
+	}`, domainID, domainID, projectID, projectID, deviceID, deviceID)
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, want, result)
+
+	status, result = getObjByID(t, e, "domain", domainID, handler.PayloadCfg{
+		Fields: []string{"project"},
+	})
+	want = fmt.Sprintf(`{
+		"domain": {
+			"name":"default",
+			"display_name":"default",
+			"fq_name": ["default"],
+			"uri":"/domain/%s",
+			"uuid":"%s",
+			"test": "hello",
+			"projects": [
+				{
+					"uuid": "%s",
+					"uri": "/project/%s",
+					"to": ["default", "juniper"]
+				}
+			]
+		}
+	}`, domainID, domainID, projectID, projectID)
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, want, result)
+
+	status, result = getObjByID(t, e, "domain", domainID, handler.PayloadCfg{
+		Fields:       []string{"project"},
+		StrictFields: true,
+	})
+	want = fmt.Sprintf(`{
+		"domain": {
+			"name":"default",
+			"display_name":"default",
+			"fq_name": ["default"],
+			"uri":"/domain/%s",
+			"uuid":"%s",
+			"projects": [
+				{
+					"uuid": "%s",
+					"uri": "/project/%s",
+					"to": ["default", "juniper"]
+				}
+			]
+		}
+	}`, domainID, domainID, projectID, projectID)
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, want, result)
+}
+
 func TestMultiParentTypes(t *testing.T) {
 	e := setupTestcase(t)
 

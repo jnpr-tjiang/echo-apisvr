@@ -32,18 +32,19 @@ type (
 		Find(db *gorm.DB, conds ...interface{}) ([]Entity, error)
 	}
 
-	modelInfo struct {
-		parentTypes  []string
-		childTypes   []string
-		refTypes     []string
-		backRefTypes []string
+	// ModelInfo contains entity model meta info
+	ModelInfo struct {
+		ParentTypes  []string
+		ChildTypes   []string
+		RefTypes     []string
+		BackRefTypes []string
 	}
 )
 
 var (
 	// EmptyUUID for empty UUID
 	EmptyUUID  uuid.UUID             = uuid.UUID{}
-	models     map[string]*modelInfo = make(map[string]*modelInfo)
+	models     map[string]*ModelInfo = make(map[string]*ModelInfo)
 	modelNames []string
 )
 
@@ -62,26 +63,26 @@ func init() {
 			panic(err)
 		}
 
-		model := modelInfo{}
-		model.parentTypes = parentTypes
-		model.refTypes = refTypes
+		model := ModelInfo{}
+		model.ParentTypes = parentTypes
+		model.RefTypes = refTypes
 		models[k] = &model
 	}
 
 	for entityType, model := range models {
-		for _, parentType := range model.parentTypes {
+		for _, parentType := range model.ParentTypes {
 			parentModel, ok := models[parentType]
 			if !ok {
 				panic(fmt.Sprintf("[%s] Invalid parent type: %s", entityType, parentType))
 			}
-			parentModel.childTypes = append(parentModel.childTypes, entityType)
+			parentModel.ChildTypes = append(parentModel.ChildTypes, entityType)
 		}
-		for _, refType := range model.refTypes {
+		for _, refType := range model.RefTypes {
 			refModel, ok := models[refType]
 			if !ok {
 				panic(fmt.Sprintf("[%s] Invalid ref type: %s", entityType, refType))
 			}
-			refModel.backRefTypes = append(refModel.backRefTypes, entityType)
+			refModel.BackRefTypes = append(refModel.BackRefTypes, entityType)
 		}
 	}
 }
@@ -157,6 +158,12 @@ func ModelNames() []string {
 	return modelNames
 }
 
+// GetModelInfo return entity model meta info
+func GetModelInfo(entity Entity) (ModelInfo, bool) {
+	m, ok := models[strings.ToLower(utils.TypeOf(entity))]
+	return *m, ok
+}
+
 func (b *BaseModel) preCreate(tx *gorm.DB, obj Entity) (err error) {
 	// name is mandatory field
 	if b.Name == "" {
@@ -179,10 +186,10 @@ func (b *BaseModel) preCreate(tx *gorm.DB, obj Entity) (err error) {
 	if !ok {
 		return fmt.Errorf("Model not supported: %s", objType)
 	}
-	if b.ParentType == "" && len(m.parentTypes) > 0 {
-		b.ParentType = m.parentTypes[0]
+	if b.ParentType == "" && len(m.ParentTypes) > 0 {
+		b.ParentType = m.ParentTypes[0]
 	}
-	if idx := utils.IndexOf(m.parentTypes, b.ParentType); b.ParentType != "" && idx < 0 {
+	if idx := utils.IndexOf(m.ParentTypes, b.ParentType); b.ParentType != "" && idx < 0 {
 		return fmt.Errorf("Invalid parent type: %s", b.ParentType)
 	}
 
