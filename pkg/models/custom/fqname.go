@@ -10,7 +10,7 @@ import (
 // FQName is the fully qualified unique name
 type FQName []string
 
-// Value return json value, implement driver.Valuer interface
+// Value -
 func (fqn FQName) Value() (driver.Value, error) {
 	if len(fqn) == 0 {
 		return nil, nil
@@ -26,7 +26,7 @@ func (fqn FQName) Value() (driver.Value, error) {
 	return str, nil
 }
 
-// Scan scan value into Jsonb, implements sql.Scanner interface
+// Scan -
 func (fqn *FQName) Scan(value interface{}) error {
 	str, ok := value.(string)
 	if !ok {

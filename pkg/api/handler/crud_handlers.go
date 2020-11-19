@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/database"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/models"
-	"github.com/jnpr-tjiang/echo-apisvr/pkg/models/custom"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/utils"
 	"github.com/labstack/echo"
 	"github.com/labstack/gommon/log"
@@ -137,13 +136,21 @@ func buildEntityPayload(db *gorm.DB, entity models.Entity, cfg PayloadCfg) (payl
 	fields := make(map[string]interface{})
 	refFieldsToShow := cfg.RefFieldsToShow(modelInfo)
 	if len(refFieldsToShow) > 0 {
+		children := buildRefFields(db, entity, refFieldsToShow)
+		for k, v := range children {
+			fields[k] = v
+		}
 	}
 	backRefFieldsToShow := cfg.BackRefFieldsToShow(modelInfo)
 	if len(backRefFieldsToShow) > 0 {
+		children := buildBackRefFields(db, entity, backRefFieldsToShow)
+		for k, v := range children {
+			fields[k] = v
+		}
 	}
 	childFieldsToShow := cfg.ChildFieldsToShow(modelInfo)
 	if len(childFieldsToShow) > 0 {
-		children := buildChildrenRefs(db, entity, childFieldsToShow)
+		children := buildChildrenFields(db, entity, childFieldsToShow)
 		for k, v := range children {
 			fields[k] = v
 		}
@@ -168,25 +175,61 @@ func buildEntityPayload(db *gorm.DB, entity models.Entity, cfg PayloadCfg) (payl
 	}
 }
 
-func buildChildrenRefs(db *gorm.DB, entity models.Entity, childFieldsToShow []string) map[string]interface{} {
-	childRefs := make(map[string]interface{})
-	for _, childType := range childFieldsToShow {
-		if childEntity, err := models.NewEntity(childType); err == nil {
-			children, err := childEntity.Find(
+func buildChildrenFields(db *gorm.DB, entity models.Entity, childFieldsToShow []string) map[string]interface{} {
+	childFields := make(map[string]interface{})
+	for _, childField := range childFieldsToShow {
+		if childEntity, err := models.NewEntity(childField); err == nil {
+			childEntities, err := childEntity.Find(
 				db.Select("ID", "fqname"), "parent_id = ? AND parent_type = ?",
 				entity.BaseModel().ID, strings.ToLower(utils.TypeOf(entity)))
 			if err != nil {
 				log.Errorf("DB error encounterd while querying the children: %v", err)
 			}
-			if len(children) > 0 {
-				childRefs[utils.Pluralize(childType)] = buildRefs(children)
+			if len(childEntities) > 0 {
+				childFields[utils.Pluralize(childField)] = buildChildRefs(childEntities)
 			}
 		}
 	}
-	return childRefs
+	return childFields
 }
 
-func buildRefs(entities []models.Entity) []interface{} {
+func buildRefFields(db *gorm.DB, entity models.Entity, refFieldsToShow []string) map[string]interface{} {
+	refFields := make(map[string]interface{})
+	for _, refField := range refFieldsToShow {
+		if refEntity, err := models.NewEntity(refField); err == nil {
+			refEntities, err := refEntity.Find(
+				db.Select("ID", "fqname"), "parent_id = ? AND parent_type = ?",
+				entity.BaseModel().ID, strings.ToLower(utils.TypeOf(entity)))
+			if err != nil {
+				log.Errorf("DB error encounterd while querying the children: %v", err)
+			}
+			if len(refEntities) > 0 {
+				refFields[utils.Pluralize(refField)] = buildChildRefs(refEntities)
+			}
+		}
+	}
+	return refFields
+}
+
+func buildBackRefFields(db *gorm.DB, entity models.Entity, backRefFieldsToShow []string) map[string]interface{} {
+	backRefFields := make(map[string]interface{})
+	for _, refField := range backRefFieldsToShow {
+		if backRefEntity, err := models.NewEntity(refField); err == nil {
+			backRefEntities, err := backRefEntity.Find(
+				db.Select("ID", "fqname"), "parent_id = ? AND parent_type = ?",
+				entity.BaseModel().ID, strings.ToLower(utils.TypeOf(entity)))
+			if err != nil {
+				log.Errorf("DB error encounterd while querying the children: %v", err)
+			}
+			if len(backRefEntities) > 0 {
+				backRefFields[utils.Pluralize(refField)] = buildChildRefs(backRefEntities)
+			}
+		}
+	}
+	return backRefFields
+}
+
+func buildChildRefs(entities []models.Entity) []interface{} {
 	refs := make([]interface{}, len(entities))
 	for i, entity := range entities {
 		uuidStr := entity.BaseModel().ID.String()
@@ -218,13 +261,17 @@ func ModelCreateHandler(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	populateBaseModel(entity.BaseModel(), payload)
+	err = models.PopulateEntity(entity, payload)
+	if err != nil {
+		return err
+	}
 
 	// save the entity to database
 	db := database.GormDB()
-	if err = db.Create(entity).Error; err != nil {
+	if err = models.SaveEntity(db, entity); err != nil {
 		return err
 	}
+
 	return c.String(http.StatusCreated, fmt.Sprintf("%s", entity.BaseModel().ID))
 }
 
@@ -304,33 +351,4 @@ func ModelDeleteHandler(c echo.Context) error {
 		return err
 	}
 	return c.String(http.StatusOK, fmt.Sprintf("%s", uuid.String()))
-}
-
-func populateBaseModel(m *models.BaseModel, payload map[string]interface{}) {
-	if ID, ok := payload["uuid"]; ok {
-		m.ID = ID.(uuid.UUID)
-	}
-	if name, ok := payload["name"]; ok {
-		m.Name = name.(string)
-	}
-	if displayName, ok := payload["display_name"]; ok {
-		m.DisplayName = displayName.(string)
-	}
-	if fqname, ok := payload["fq_name"]; ok {
-		var s []string
-		for _, v := range fqname.([]interface{}) {
-			s = append(s, v.(string))
-		}
-		fqn := custom.FQName(s)
-		if val, err := custom.FQName(fqn).Value(); err == nil {
-			m.FQName = val.(string)
-		}
-	}
-	if parentType, ok := payload["parent_type"]; ok {
-		m.ParentType = parentType.(string)
-	}
-	if parentID, ok := payload["parent_uuid"]; ok {
-		m.ParentID = parentID.(uuid.UUID)
-	}
-	m.JSON = &payload
 }

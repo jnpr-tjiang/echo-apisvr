@@ -346,6 +346,40 @@ func TestMultiParentTypes(t *testing.T) {
 	require.Equal(t, http.StatusCreated, status)
 }
 
+func TestRefCreation(t *testing.T) {
+	e := setupTestcase(t)
+
+	// domain CRUD
+	createObj(t, e, "domain", `{"name": "default"}`)
+	createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
+
+	// device family
+	devicefamilyID := uuid.New().String()
+	status, _ := createObj(t, e, "devicefamily", fmt.Sprintf(`{
+		"uuid": "%s",
+		"name": "mx",
+		"fq_name": ["default", "juniper", "mx"]}`, devicefamilyID))
+	require.Equal(t, http.StatusCreated, status)
+
+	// device with ref
+	status, _ = createObj(t, e, "device", fmt.Sprintf(`{
+		"name": "mx-1",
+		"fq_name": ["default", "juniper", "mx-1"],
+		"parent_type": "project",
+		"region": "(800)331-5527",
+		"dic_op_info": {
+			"detected_dic_ip": "10.1.1.2",
+			"last_detection_timestamp": 13232233.775
+		},
+		"connection_type": "CSP_INITIATED",
+		"devicefamily_refs": [
+			{
+				"uuid": "%s"
+			}
+		]}`, devicefamilyID))
+	require.Equal(t, http.StatusCreated, status)
+}
+
 type RequestInfo struct {
 	method         string
 	uri            string

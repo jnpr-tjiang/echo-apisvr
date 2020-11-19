@@ -1,14 +1,16 @@
 package models
 
 import (
+	"github.com/gofrs/uuid"
 	"gorm.io/gorm"
 )
 
-var constructors map[string]func() Entity = map[string]func() Entity{
-	"domain":       func() Entity { return &Domain{} },
-	"project":      func() Entity { return &Project{} },
-	"device":       func() Entity { return &Device{} },
-	"devicefamily": func() Entity { return &Devicefamily{} },
+var constructors map[string]func() interface{} = map[string]func() interface{}{
+	"domain":             func() interface{} { return &Domain{} },
+	"project":            func() interface{} { return &Project{} },
+	"device":             func() interface{} { return &Device{} },
+	"devicefamily":       func() interface{} { return &Devicefamily{} },
+	"devicedevicefamily": func() interface{} { return &DeviceDevicefamily{} },
 }
 
 // Domain -----------------------------------------------------------------
@@ -56,9 +58,6 @@ func (entity *Project) BeforeCreate(tx *gorm.DB) error {
 // Devicefamily -----------------------------------------------------------------
 type Devicefamily struct {
 	Base BaseModel `gorm:"embedded" parentTypes:"project"`
-
-	// Many-Many relations
-	Devices []Device `gorm:"many2many:devicefamily_devices"`
 }
 
 // BaseModel returns the reference to the base model
@@ -80,6 +79,8 @@ func (entity *Devicefamily) BeforeCreate(tx *gorm.DB) error {
 // Device -----------------------------------------------------------------
 type Device struct {
 	Base BaseModel `gorm:"embedded" parentTypes:"domain,project"`
+	// Many-Many relations
+	Devicefamilies []Devicefamily `gorm:"many2many:device_devicefamilies"`
 }
 
 // BaseModel returns the reference to the base model
@@ -96,4 +97,16 @@ func (entity *Device) Find(db *gorm.DB, conds ...interface{}) ([]Entity, error) 
 // BeforeCreate to validate and set default
 func (entity *Device) BeforeCreate(tx *gorm.DB) error {
 	return entity.Base.preCreate(tx, entity)
+}
+
+// DeviceDevicefamily -----------------------------------------------------------
+type DeviceDevicefamily struct {
+	Base           BaseRef `gorm:"embedded"`
+	DeviceID       uuid.UUID
+	DevicefamilyID uuid.UUID
+}
+
+// BaseRef returns the reference to the BaseRef model
+func (entity *DeviceDevicefamily) BaseRef() *BaseRef {
+	return nil
 }

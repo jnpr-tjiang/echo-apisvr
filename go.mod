@@ -11,6 +11,7 @@ require (
 	github.com/labstack/echo v3.3.10+incompatible
 	github.com/labstack/gommon v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/mitchellh/mapstructure v1.3.3
 	github.com/nsf/jsondiff v0.0.0-20200515183724-f29ed568f4ce // indirect
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/viper v1.7.1

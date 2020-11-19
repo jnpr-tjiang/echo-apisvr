@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/models/custom"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/utils"
+	"github.com/mitchellh/mapstructure"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -23,13 +24,26 @@ type (
 		ParentType  string                  `gorm:"column:parent_type"`
 		FQName      string                  `gorm:"column:fqname;not null;uniqueIndex"`
 		Payload     datatypes.JSON          `gorm:"column:payload"`
-		JSON        *map[string]interface{} `gorm:"-"`
+		payload     *map[string]interface{} `gorm:"-"`
+		refs        map[string]interface{}  `gorm:"-"`
 	}
 
 	// Entity is base interface for all models
 	Entity interface {
 		BaseModel() *BaseModel
 		Find(db *gorm.DB, conds ...interface{}) ([]Entity, error)
+	}
+
+	// BaseRef - base ref entity model
+	BaseRef struct {
+		FromFQName string         `gorm:"column:from_fqname"`
+		ToFQName   string         `gorm:"column:to_fqname"`
+		Payload    datatypes.JSON `gorm:"column:payload"`
+	}
+
+	// RefEntity is the base interface for all refs
+	RefEntity interface {
+		BaseRef() *BaseRef
 	}
 
 	// ModelInfo contains entity model meta info
@@ -57,16 +71,18 @@ func init() {
 	}
 
 	for k, v := range constructors {
-		entity := v()
-		parentTypes, refTypes, err := reflectEntity(entity)
-		if err != nil {
-			panic(err)
-		}
+		obj := v()
+		if entity, ok := obj.(Entity); ok {
+			parentTypes, refTypes, err := reflectEntity(entity)
+			if err != nil {
+				panic(err)
+			}
 
-		model := ModelInfo{}
-		model.ParentTypes = parentTypes
-		model.RefTypes = refTypes
-		models[k] = &model
+			model := ModelInfo{}
+			model.ParentTypes = parentTypes
+			model.RefTypes = refTypes
+			models[k] = &model
+		}
 	}
 
 	for entityType, model := range models {
@@ -150,7 +166,22 @@ func NewEntity(entityType string) (Entity, error) {
 	if !ok {
 		return nil, fmt.Errorf("Invalid Entity type: " + entityType)
 	}
-	return c(), nil
+	if entity, ok := c().(Entity); ok {
+		return entity, nil
+	}
+	return nil, fmt.Errorf("Invalid Entity type: %s", entityType)
+}
+
+// NewRefEntity is the factory function to construct a new entity by type
+func NewRefEntity(refEntityType string) (RefEntity, error) {
+	c, ok := constructors[refEntityType]
+	if !ok {
+		return nil, fmt.Errorf("Invalid Entity type: " + refEntityType)
+	}
+	if refEntity, ok := c().(RefEntity); ok {
+		return refEntity, nil
+	}
+	return nil, fmt.Errorf("Invalid RefEntity type: " + refEntityType)
 }
 
 // ModelNames returns names for all registered models
@@ -164,10 +195,172 @@ func GetModelInfo(entity Entity) (ModelInfo, bool) {
 	return *m, ok
 }
 
+// GetIDByFQName queries DB for FQName by ID
+func GetIDByFQName(tx *gorm.DB, fqname string, entityType string) (uuid.UUID, error) {
+	var ids []uuid.UUID
+	sql := fmt.Sprintf("select id from %s where fqname = ?", utils.Pluralize(entityType))
+	tx.Raw(sql, fqname).Scan(&ids)
+	if len(ids) == 0 {
+		return EmptyUUID, fmt.Errorf("Parent id not found for fqname[%s]: %s", entityType, fqname)
+	}
+	return ids[0], nil
+}
+
+// GetFQNameByID queries DB for ID by FQName
+func GetFQNameByID(tx *gorm.DB, id uuid.UUID, entityType string) (string, error) {
+	sql := fmt.Sprintf("select fqname from %s where id = ?", utils.Pluralize(entityType))
+	var fqname string
+	tx.Raw(sql, id).Scan(&fqname)
+	if fqname == "" {
+		return fqname, fmt.Errorf("Failed to find parent obj: %s[%v]", entityType, id)
+	}
+	return fqname, nil
+}
+
+// PopulateEntity with json payload
+func PopulateEntity(entity Entity, payload map[string]interface{}) (err error) {
+	if uuidStr, ok := payload["uuid"]; ok {
+		if entity.BaseModel().ID, err = uuid.Parse(uuidStr.(string)); err != nil {
+			return err
+		}
+	}
+	if name, ok := payload["name"]; ok {
+		entity.BaseModel().Name = name.(string)
+	}
+	if displayName, ok := payload["display_name"]; ok {
+		entity.BaseModel().DisplayName = displayName.(string)
+	}
+	if fqname, ok := payload["fq_name"]; ok {
+		var s []string
+		for _, v := range fqname.([]interface{}) {
+			s = append(s, v.(string))
+		}
+		fqn := custom.FQName(s)
+		if val, err := custom.FQName(fqn).Value(); err == nil {
+			entity.BaseModel().FQName = val.(string)
+		}
+	}
+	if parentType, ok := payload["parent_type"]; ok {
+		entity.BaseModel().ParentType = parentType.(string)
+	}
+	if parentID, ok := payload["parent_uuid"]; ok {
+		entity.BaseModel().ParentID = parentID.(uuid.UUID)
+	}
+
+	// refs
+	model, ok := GetModelInfo(entity)
+	if !ok {
+		return fmt.Errorf("Model info not found: %s", utils.TypeOf(entity))
+	}
+	entity.BaseModel().refs = make(map[string]interface{})
+	for _, refType := range model.RefTypes {
+		fieldName := refType + "_refs"
+		if v, ok := payload[fieldName]; ok {
+			entity.BaseModel().refs[refType] = v
+		}
+	}
+
+	// remove refs from payload
+	for _, refType := range model.RefTypes {
+		fieldName := refType + "_refs"
+		delete(payload, fieldName)
+	}
+	entity.BaseModel().payload = &payload
+
+	return err
+}
+
+// SaveEntity to the database
+func SaveEntity(db *gorm.DB, entity Entity) error {
+	return db.Transaction(func(tx *gorm.DB) (err error) {
+		if err = tx.Create(entity).Error; err != nil {
+			return err
+		}
+		for k, v := range entity.BaseModel().refs {
+			if refs, ok := v.([]interface{}); ok {
+				fromType := strings.ToLower(utils.TypeOf(entity))
+				toType := k
+				for _, refData := range refs {
+					refEntity, err := NewRefEntity(fromType + toType)
+					if err != nil {
+						return err
+					}
+					if err = loadRefEntity(tx, refEntity, entity, toType, refData); err != nil {
+						return err
+					}
+					if err = tx.Create(refEntity).Error; err != nil {
+						return err
+					}
+				}
+			}
+		}
+		return err
+	})
+}
+
+func loadRefEntity(tx *gorm.DB, refEntity RefEntity, fromEntity Entity, toType string, refData interface{}) (err error) {
+	type RefStruct struct {
+		UUID string
+		To   []string
+		Attr interface{}
+	}
+	var (
+		refStruct            RefStruct = RefStruct{}
+		fromID, toID         uuid.UUID
+		fromFQName, toFQName string
+		ok                   bool
+	)
+	if err = mapstructure.Decode(refData, &refStruct); err != nil {
+		return err
+	}
+
+	fromID = fromEntity.BaseModel().ID
+	fromFQName = fromEntity.BaseModel().FQName
+	if refStruct.UUID != "" {
+		toID, err = uuid.Parse(refStruct.UUID)
+		if err != nil {
+			return err
+		}
+		toFQName, err = GetFQNameByID(tx, toID, strings.ToLower(toType))
+		if err != nil {
+			return err
+		}
+
+	} else if len(refStruct.To) > 0 {
+		val, err := custom.FQName(refStruct.To).Value()
+		if err != nil {
+			return err
+		}
+		toFQName, ok = val.(string)
+		if !ok {
+			return fmt.Errorf("Something is wrong")
+		}
+		toID, err = GetIDByFQName(tx, toFQName, strings.ToLower(toType))
+		if err != nil {
+			return err
+		}
+	} else {
+		return fmt.Errorf("Invalid ref data: %v", refData)
+	}
+
+	refEntityMap := make(map[string]interface{})
+	refEntityMap[utils.TypeOf(fromEntity)+"ID"] = fromID
+	refEntityMap[toType+"ID"] = toID
+	base := make(map[string]interface{})
+	base["FromFQName"] = fromFQName
+	base["ToFQName"] = toFQName
+	base["Payload"] = refStruct.Attr
+	refEntityMap["Base"] = base
+	if err = mapstructure.Decode(refEntityMap, refEntity); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (b *BaseModel) preCreate(tx *gorm.DB, obj Entity) (err error) {
 	// name is mandatory field
 	if b.Name == "" {
-		return fmt.Errorf("Empty name not allow")
+		return fmt.Errorf("Empty name not allowed")
 	}
 
 	// auto set the display name if not set
@@ -204,23 +397,17 @@ func (b *BaseModel) preCreate(tx *gorm.DB, obj Entity) (err error) {
 		}
 
 		if b.FQName != "" && b.ParentID == EmptyUUID {
-			sql := fmt.Sprintf("select id from %s where fqname = ?", utils.Pluralize(b.ParentType))
 			parentFQN, err := custom.ParseParentFQName(b.FQName)
 			if err != nil {
 				return fmt.Errorf("Invalid fqname: %s", b.FQName)
 			}
-			var ids []uuid.UUID
-			tx.Raw(sql, parentFQN).Scan(&ids)
-			if len(ids) == 0 {
-				return fmt.Errorf("Parent id not found for fqname[%s]: %s", b.ParentType, parentFQN)
+			if b.ParentID, err = GetIDByFQName(tx, parentFQN, b.ParentType); err != nil {
+				return err
 			}
-			b.ParentID = ids[0]
 		} else if b.FQName == "" && b.ParentID != EmptyUUID {
-			sql := fmt.Sprintf("select fqname from %s where id = ?", utils.Pluralize(b.ParentType))
-			var parentFQName string
-			tx.Raw(sql, b.ParentID).Scan(&parentFQName)
-			if parentFQName == "" {
-				return fmt.Errorf("Failed to find parent obj: %s[%v]", b.ParentType, b.ParentID)
+			parentFQName, err := GetFQNameByID(tx, b.ParentID, b.ParentType)
+			if err != nil {
+				return err
 			}
 			b.FQName = custom.ConstructFQName(parentFQName, b.Name)
 		} else {
@@ -234,21 +421,21 @@ func (b *BaseModel) preCreate(tx *gorm.DB, obj Entity) (err error) {
 func (b *BaseModel) constructPayload(obj Entity) (err error) {
 	idstr := b.ID.String()
 	objType := strings.ToLower(utils.TypeOf(obj))
-	(*b.JSON)["uuid"] = idstr
+	(*b.payload)["uuid"] = idstr
 	if b.ParentType != "" {
-		(*b.JSON)["parent_type"] = b.ParentType
-		(*b.JSON)["parent_uuid"] = b.ParentID.String()
-		(*b.JSON)["parent_uri"] = fmt.Sprintf("/%s/%s", b.ParentType, b.ParentID.String())
+		(*b.payload)["parent_type"] = b.ParentType
+		(*b.payload)["parent_uuid"] = b.ParentID.String()
+		(*b.payload)["parent_uri"] = fmt.Sprintf("/%s/%s", b.ParentType, b.ParentID.String())
 	}
-	(*b.JSON)["uri"] = fmt.Sprintf("/%s/%s", objType, idstr)
-	(*b.JSON)["display_name"] = b.DisplayName
+	(*b.payload)["uri"] = fmt.Sprintf("/%s/%s", objType, idstr)
+	(*b.payload)["display_name"] = b.DisplayName
 
 	var fqname []string
 	if err = json.Unmarshal([]byte(b.FQName), &fqname); err != nil {
 		return err
 	}
-	(*b.JSON)["fq_name"] = fqname
+	(*b.payload)["fq_name"] = fqname
 
-	b.Payload, err = json.Marshal(*b.JSON)
+	b.Payload, err = json.Marshal(*b.payload)
 	return err
 }
