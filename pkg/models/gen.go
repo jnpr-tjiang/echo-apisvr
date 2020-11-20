@@ -6,11 +6,11 @@ import (
 )
 
 var constructors map[string]func() interface{} = map[string]func() interface{}{
-	"domain":             func() interface{} { return &Domain{} },
-	"project":            func() interface{} { return &Project{} },
-	"device":             func() interface{} { return &Device{} },
-	"devicefamily":       func() interface{} { return &Devicefamily{} },
-	"devicedevicefamily": func() interface{} { return &DeviceDevicefamily{} },
+	"domain":              func() interface{} { return &Domain{} },
+	"project":             func() interface{} { return &Project{} },
+	"device":              func() interface{} { return &Device{} },
+	"device_family":       func() interface{} { return &Device_family{} },
+	"devicedevice_family": func() interface{} { return &DeviceDevice_family{} },
 }
 
 // Domain -----------------------------------------------------------------
@@ -55,24 +55,24 @@ func (entity *Project) BeforeCreate(tx *gorm.DB) error {
 	return entity.Base.preCreate(tx, entity)
 }
 
-// Devicefamily -----------------------------------------------------------------
-type Devicefamily struct {
+// Device_family -----------------------------------------------------------------
+type Device_family struct {
 	Base BaseModel `gorm:"embedded" parentTypes:"project"`
 }
 
 // BaseModel returns the reference to the base model
-func (entity *Devicefamily) BaseModel() *BaseModel {
+func (entity *Device_family) BaseModel() *BaseModel {
 	return &entity.Base
 }
 
 // Find entities that meets certain conditions
-func (entity *Devicefamily) Find(db *gorm.DB, conds ...interface{}) ([]Entity, error) {
-	var entities []Devicefamily
+func (entity *Device_family) Find(db *gorm.DB, conds ...interface{}) ([]Entity, error) {
+	var entities []Device_family
 	return findEntity(db, &entities, conds...)
 }
 
 // BeforeCreate to validate and set default
-func (entity *Devicefamily) BeforeCreate(tx *gorm.DB) error {
+func (entity *Device_family) BeforeCreate(tx *gorm.DB) error {
 	return entity.Base.preCreate(tx, entity)
 }
 
@@ -80,7 +80,7 @@ func (entity *Devicefamily) BeforeCreate(tx *gorm.DB) error {
 type Device struct {
 	Base BaseModel `gorm:"embedded" parentTypes:"domain,project"`
 	// Many-Many relations
-	Devicefamilies []Devicefamily `gorm:"many2many:device_devicefamilies"`
+	Device_families []Device_family `gorm:"many2many:device_device_families"`
 }
 
 // BaseModel returns the reference to the base model
@@ -99,20 +99,20 @@ func (entity *Device) BeforeCreate(tx *gorm.DB) error {
 	return entity.Base.preCreate(tx, entity)
 }
 
-// DeviceDevicefamily -----------------------------------------------------------
-type DeviceDevicefamily struct {
-	Base           BaseRef `gorm:"embedded"`
-	DeviceID       uuid.UUID
-	DevicefamilyID uuid.UUID
+// DeviceDevice_family -----------------------------------------------------------
+type DeviceDevice_family struct {
+	Base            BaseRef `gorm:"embedded"`
+	DeviceID        uuid.UUID
+	Device_familyID uuid.UUID
 }
 
 // BaseRef returns the reference to the BaseRef model
-func (entity *DeviceDevicefamily) BaseRef() *BaseRef {
+func (entity *DeviceDevice_family) BaseRef() *BaseRef {
 	return nil
 }
 
 // Find entities that meets certain conditions
-func (entity *DeviceDevicefamily) Find(db *gorm.DB, conds ...interface{}) ([]RefEntity, error) {
-	var entities []DeviceDevicefamily
+func (entity *DeviceDevice_family) Find(db *gorm.DB, conds ...interface{}) ([]RefEntity, error) {
+	var entities []DeviceDevice_family
 	return findRefEntity(db, &entities, conds...)
 }

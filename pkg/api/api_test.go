@@ -354,11 +354,11 @@ func TestRefCreation(t *testing.T) {
 	_, projectID := createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
 
 	// device family
-	devicefamilyID := uuid.New().String()
-	status, _ := createObj(t, e, "devicefamily", fmt.Sprintf(`{
+	device_familyID := uuid.New().String()
+	status, _ := createObj(t, e, "device_family", fmt.Sprintf(`{
 		"uuid": "%s",
 		"name": "mx",
-		"fq_name": ["default", "juniper", "mx"]}`, devicefamilyID))
+		"fq_name": ["default", "juniper", "mx"]}`, device_familyID))
 	require.Equal(t, http.StatusCreated, status)
 
 	// device with ref
@@ -374,14 +374,14 @@ func TestRefCreation(t *testing.T) {
 			"last_detection_timestamp": 13232233.775
 		},
 		"connection_type": "CSP_INITIATED",
-		"devicefamily_refs": [
+		"device_family_refs": [
 			{
 				"uuid": "%s",
 				"attr": {
 					"test": "foo"
 				}
 			}
-		]}`, deviceID, devicefamilyID))
+		]}`, deviceID, device_familyID))
 	require.Equal(t, http.StatusCreated, status)
 
 	// get device with refs
@@ -404,27 +404,27 @@ func TestRefCreation(t *testing.T) {
 			"parent_uuid": "%s",
 			"display_name": "mx-1",
 			"connection_type": "CSP_INITIATED",
-			"devicefamily_refs":[
+			"device_family_refs":[
 				{
 					"uuid": "%s",
 					"to": ["default", "juniper", "mx"],
-					"uri": "/devicefamily/%s",
+					"uri": "/device_family/%s",
 					"attr": {
 						"test": "foo"
 					}
 				}
 			]
 		}	
-	}`, deviceID, deviceID, projectID, projectID, devicefamilyID, devicefamilyID)
+	}`, deviceID, deviceID, projectID, projectID, device_familyID, device_familyID)
 	require.JSONEq(t, want, result)
 
-	// get devicefamily with back refs
-	status, result = getObjByID(t, e, "devicefamily", devicefamilyID, handler.PayloadCfg{ShowBackRefs: true})
+	// get device_family with back refs
+	status, result = getObjByID(t, e, "device_family", device_familyID, handler.PayloadCfg{ShowBackRefs: true})
 	require.Equal(t, http.StatusOK, status)
 	want = fmt.Sprintf(`{
-		"devicefamily": {
+		"device_family": {
 			"name": "mx",
-			"uri": "/devicefamily/%s",
+			"uri": "/device_family/%s",
 			"uuid": "%s",
 			"fq_name": ["default", "juniper", "mx"],
 			"parent_uri": "/project/%s",
@@ -442,7 +442,7 @@ func TestRefCreation(t *testing.T) {
 				}
 			]
 		}	
-	}`, devicefamilyID, devicefamilyID, projectID, projectID, deviceID, deviceID)
+	}`, device_familyID, device_familyID, projectID, projectID, deviceID, deviceID)
 	require.JSONEq(t, want, result)
 }
 

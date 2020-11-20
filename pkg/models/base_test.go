@@ -20,7 +20,7 @@ func TestBaseModel_New(t *testing.T) {
 
 func TestBaseModel_ModelNames(t *testing.T) {
 	names := ModelNames()
-	want := []string{"domain", "project", "device", "devicefamily"}
+	want := []string{"domain", "project", "device", "device_family", "devicedevice_family"}
 	if len(names) != len(want) {
 		t.Errorf("Expect %v but got %v", want, names)
 	}

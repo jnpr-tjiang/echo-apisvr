@@ -6,11 +6,11 @@ import (
 
 // MigrateDataModel - Auto migrate project models
 func MigrateDataModel(db *gorm.DB) {
-	if err := db.SetupJoinTable(&Device{}, "Devicefamilies", &DeviceDevicefamily{}); err != nil {
+	if err := db.SetupJoinTable(&Device{}, "Device_families", &DeviceDevice_family{}); err != nil {
 		panic(err)
 	}
 	db.AutoMigrate(&Domain{})
 	db.AutoMigrate(&Project{})
 	db.AutoMigrate(&Device{})
-	db.AutoMigrate(&Devicefamily{})
+	db.AutoMigrate(&Device_family{})
 }
