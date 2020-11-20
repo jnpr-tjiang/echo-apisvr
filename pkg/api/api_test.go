@@ -351,7 +351,7 @@ func TestRefCreation(t *testing.T) {
 
 	// domain CRUD
 	createObj(t, e, "domain", `{"name": "default"}`)
-	createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
+	_, projectID := createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
 
 	// device family
 	devicefamilyID := uuid.New().String()
@@ -362,7 +362,9 @@ func TestRefCreation(t *testing.T) {
 	require.Equal(t, http.StatusCreated, status)
 
 	// device with ref
+	deviceID := uuid.New().String()
 	status, _ = createObj(t, e, "device", fmt.Sprintf(`{
+		"uuid": "%s",
 		"name": "mx-1",
 		"fq_name": ["default", "juniper", "mx-1"],
 		"parent_type": "project",
@@ -374,10 +376,74 @@ func TestRefCreation(t *testing.T) {
 		"connection_type": "CSP_INITIATED",
 		"devicefamily_refs": [
 			{
-				"uuid": "%s"
+				"uuid": "%s",
+				"attr": {
+					"test": "foo"
+				}
 			}
-		]}`, devicefamilyID))
+		]}`, deviceID, devicefamilyID))
 	require.Equal(t, http.StatusCreated, status)
+
+	// get device with refs
+	var result string
+	status, result = getObjByID(t, e, "device", deviceID, handler.PayloadCfg{ShowRefs: true})
+	require.Equal(t, http.StatusOK, status)
+	want := fmt.Sprintf(`{
+		"device": {
+			"name": "mx-1",
+			"uri": "/device/%s",
+			"uuid": "%s",
+			"fq_name": ["default", "juniper", "mx-1"],
+			"region": "(800)331-5527",
+			"parent_uri": "/project/%s",
+			"dic_op_info": {
+				"detected_dic_ip": "10.1.1.2",
+				"last_detection_timestamp": 13232233.775
+			},
+			"parent_type": "project",
+			"parent_uuid": "%s",
+			"display_name": "mx-1",
+			"connection_type": "CSP_INITIATED",
+			"devicefamily_refs":[
+				{
+					"uuid": "%s",
+					"to": ["default", "juniper", "mx"],
+					"uri": "/devicefamily/%s",
+					"attr": {
+						"test": "foo"
+					}
+				}
+			]
+		}	
+	}`, deviceID, deviceID, projectID, projectID, devicefamilyID, devicefamilyID)
+	require.JSONEq(t, want, result)
+
+	// get devicefamily with back refs
+	status, result = getObjByID(t, e, "devicefamily", devicefamilyID, handler.PayloadCfg{ShowBackRefs: true})
+	require.Equal(t, http.StatusOK, status)
+	want = fmt.Sprintf(`{
+		"devicefamily": {
+			"name": "mx",
+			"uri": "/devicefamily/%s",
+			"uuid": "%s",
+			"fq_name": ["default", "juniper", "mx"],
+			"parent_uri": "/project/%s",
+			"parent_type": "project",
+			"parent_uuid": "%s",
+			"display_name": "mx",
+			"device_back_refs":[
+				{
+					"uuid": "%s",
+					"to": ["default", "juniper", "mx-1"],
+					"uri": "/device/%s",
+					"attr": {
+						"test": "foo"
+					}
+				}
+			]
+		}	
+	}`, devicefamilyID, devicefamilyID, projectID, projectID, deviceID, deviceID)
+	require.JSONEq(t, want, result)
 }
 
 type RequestInfo struct {

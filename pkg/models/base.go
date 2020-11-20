@@ -44,6 +44,7 @@ type (
 	// RefEntity is the base interface for all refs
 	RefEntity interface {
 		BaseRef() *BaseRef
+		Find(db *gorm.DB, conds ...interface{}) ([]RefEntity, error)
 	}
 
 	// ModelInfo contains entity model meta info
@@ -156,6 +157,22 @@ func findEntity(db *gorm.DB, dest interface{}, conds ...interface{}) ([]Entity, 
 	entities := make([]Entity, s.Len(), s.Len())
 	for i := 0; i < s.Len(); i++ {
 		entities[i] = s.Index(i).Addr().Interface().(Entity)
+	}
+	return entities, nil
+}
+
+func findRefEntity(db *gorm.DB, dest interface{}, conds ...interface{}) ([]RefEntity, error) {
+	if err := db.Find(dest, conds...).Error; err != nil {
+		return []RefEntity{}, err
+	}
+	s := reflect.ValueOf(dest).Elem()
+	if s.Kind() != reflect.Slice {
+		return nil, fmt.Errorf("dest must be an slice")
+	}
+
+	entities := make([]RefEntity, s.Len(), s.Len())
+	for i := 0; i < s.Len(); i++ {
+		entities[i] = s.Index(i).Addr().Interface().(RefEntity)
 	}
 	return entities, nil
 }
@@ -345,11 +362,14 @@ func loadRefEntity(tx *gorm.DB, refEntity RefEntity, fromEntity Entity, toType s
 
 	refEntityMap := make(map[string]interface{})
 	refEntityMap[utils.TypeOf(fromEntity)+"ID"] = fromID
-	refEntityMap[toType+"ID"] = toID
+	refEntityMap[strings.Title(toType)+"ID"] = toID
 	base := make(map[string]interface{})
 	base["FromFQName"] = fromFQName
 	base["ToFQName"] = toFQName
-	base["Payload"] = refStruct.Attr
+	base["Payload"], err = json.Marshal(refStruct.Attr)
+	if err != nil {
+		return err
+	}
 	refEntityMap["Base"] = base
 	if err = mapstructure.Decode(refEntityMap, refEntity); err != nil {
 		return err

@@ -110,3 +110,9 @@ type DeviceDevicefamily struct {
 func (entity *DeviceDevicefamily) BaseRef() *BaseRef {
 	return nil
 }
+
+// Find entities that meets certain conditions
+func (entity *DeviceDevicefamily) Find(db *gorm.DB, conds ...interface{}) ([]RefEntity, error) {
+	var entities []DeviceDevicefamily
+	return findRefEntity(db, &entities, conds...)
+}

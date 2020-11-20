@@ -6,12 +6,15 @@ import (
 	"net/http"
 	"strings"
 
+	guuid "github.com/gofrs/uuid"
 	"github.com/google/uuid"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/database"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/models"
+	"github.com/jnpr-tjiang/echo-apisvr/pkg/models/custom"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/utils"
 	"github.com/labstack/echo"
-	"github.com/labstack/gommon/log"
+	"github.com/mitchellh/mapstructure"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -136,22 +139,31 @@ func buildEntityPayload(db *gorm.DB, entity models.Entity, cfg PayloadCfg) (payl
 	fields := make(map[string]interface{})
 	refFieldsToShow := cfg.RefFieldsToShow(modelInfo)
 	if len(refFieldsToShow) > 0 {
-		children := buildRefFields(db, entity, refFieldsToShow)
-		for k, v := range children {
+		refFields, err := buildRefFields(db, entity, refFieldsToShow, false)
+		if err != nil {
+			return []byte{}, err
+		}
+		for k, v := range refFields {
 			fields[k] = v
 		}
 	}
 	backRefFieldsToShow := cfg.BackRefFieldsToShow(modelInfo)
 	if len(backRefFieldsToShow) > 0 {
-		children := buildBackRefFields(db, entity, backRefFieldsToShow)
-		for k, v := range children {
+		backRefFields, err := buildRefFields(db, entity, backRefFieldsToShow, true)
+		if err != nil {
+			return []byte{}, err
+		}
+		for k, v := range backRefFields {
 			fields[k] = v
 		}
 	}
 	childFieldsToShow := cfg.ChildFieldsToShow(modelInfo)
 	if len(childFieldsToShow) > 0 {
-		children := buildChildrenFields(db, entity, childFieldsToShow)
-		for k, v := range children {
+		childFields, err := buildChildrenFields(db, entity, childFieldsToShow)
+		if err != nil {
+			return []byte{}, err
+		}
+		for k, v := range childFields {
 			fields[k] = v
 		}
 	}
@@ -175,7 +187,7 @@ func buildEntityPayload(db *gorm.DB, entity models.Entity, cfg PayloadCfg) (payl
 	}
 }
 
-func buildChildrenFields(db *gorm.DB, entity models.Entity, childFieldsToShow []string) map[string]interface{} {
+func buildChildrenFields(db *gorm.DB, entity models.Entity, childFieldsToShow []string) (map[string]interface{}, error) {
 	childFields := make(map[string]interface{})
 	for _, childField := range childFieldsToShow {
 		if childEntity, err := models.NewEntity(childField); err == nil {
@@ -183,50 +195,48 @@ func buildChildrenFields(db *gorm.DB, entity models.Entity, childFieldsToShow []
 				db.Select("ID", "fqname"), "parent_id = ? AND parent_type = ?",
 				entity.BaseModel().ID, strings.ToLower(utils.TypeOf(entity)))
 			if err != nil {
-				log.Errorf("DB error encounterd while querying the children: %v", err)
+				return childFields, err
 			}
 			if len(childEntities) > 0 {
 				childFields[utils.Pluralize(childField)] = buildChildRefs(childEntities)
 			}
 		}
 	}
-	return childFields
+	return childFields, nil
 }
 
-func buildRefFields(db *gorm.DB, entity models.Entity, refFieldsToShow []string) map[string]interface{} {
+func buildRefFields(db *gorm.DB, entity models.Entity, refFieldsToShow []string, isBackRef bool) (map[string]interface{}, error) {
+	var (
+		refEntityType string
+	)
 	refFields := make(map[string]interface{})
 	for _, refField := range refFieldsToShow {
-		if refEntity, err := models.NewEntity(refField); err == nil {
-			refEntities, err := refEntity.Find(
-				db.Select("ID", "fqname"), "parent_id = ? AND parent_type = ?",
-				entity.BaseModel().ID, strings.ToLower(utils.TypeOf(entity)))
+		entityType := utils.TypeOf(entity)
+		if !isBackRef {
+			refEntityType = strings.ToLower(entityType) + refField
+		} else {
+			refEntityType = refField + strings.ToLower(entityType)
+		}
+		if refEntity, err := models.NewRefEntity(refEntityType); err == nil {
+			refEntities, err := refEntity.Find(db, fmt.Sprintf("%s_id = ?", entityType), entity.BaseModel().ID)
 			if err != nil {
-				log.Errorf("DB error encounterd while querying the children: %v", err)
+				return refFields, err
 			}
 			if len(refEntities) > 0 {
-				refFields[utils.Pluralize(refField)] = buildChildRefs(refEntities)
+				var refFieldName string
+				if isBackRef {
+					refFieldName = refField + "_back_refs"
+				} else {
+					refFieldName = refField + "_refs"
+				}
+				refFields[refFieldName], err = buildRefs(refField, refEntities, isBackRef)
+				if err != nil {
+					return refFields, err
+				}
 			}
 		}
 	}
-	return refFields
-}
-
-func buildBackRefFields(db *gorm.DB, entity models.Entity, backRefFieldsToShow []string) map[string]interface{} {
-	backRefFields := make(map[string]interface{})
-	for _, refField := range backRefFieldsToShow {
-		if backRefEntity, err := models.NewEntity(refField); err == nil {
-			backRefEntities, err := backRefEntity.Find(
-				db.Select("ID", "fqname"), "parent_id = ? AND parent_type = ?",
-				entity.BaseModel().ID, strings.ToLower(utils.TypeOf(entity)))
-			if err != nil {
-				log.Errorf("DB error encounterd while querying the children: %v", err)
-			}
-			if len(backRefEntities) > 0 {
-				backRefFields[utils.Pluralize(refField)] = buildChildRefs(backRefEntities)
-			}
-		}
-	}
-	return backRefFields
+	return refFields, nil
 }
 
 func buildChildRefs(entities []models.Entity) []interface{} {
@@ -240,6 +250,74 @@ func buildChildRefs(entities []models.Entity) []interface{} {
 		refs[i] = refJSON
 	}
 	return refs
+}
+
+func buildRefs(refField string, refEntities []models.RefEntity, isBackRef bool) ([]interface{}, error) {
+	var (
+		ok        bool
+		fqname    custom.FQName
+		fqnameStr string
+		refUUID   guuid.UUID
+		v         interface{}
+	)
+	refs := make([]interface{}, len(refEntities))
+	for i, refEntity := range refEntities {
+		refEntityMap := make(map[string]interface{})
+		err := mapstructure.Decode(refEntity, &refEntityMap)
+		if err != nil {
+			return refs, err
+		}
+
+		ref := make(map[string]interface{})
+		refFieldType := strings.Title(refField)
+		if ref["uuid"], ok = refEntityMap[refFieldType+"ID"]; !ok {
+			return refs, fmt.Errorf(fmt.Sprintf("Filed %sID not exist in %v", refFieldType, refEntityMap))
+		}
+		v, _ = ref["uuid"]
+		refUUID, ok = v.(guuid.UUID)
+		if !ok {
+			return refs, fmt.Errorf("Invalid uuid type: %v", v)
+		}
+		ref["uuid"] = refUUID.String()
+		ref["uri"] = fmt.Sprintf("/%s/%s", refField, refUUID.String())
+
+		v, ok := refEntityMap["Base"]
+		if !ok {
+			return refs, fmt.Errorf("Field 'Base' not exist in %v", refEntityMap)
+		}
+		base, ok := v.(map[string]interface{})
+		if !ok {
+			return refs, fmt.Errorf("Invalid 'Base' field type")
+		}
+		var fieldName string
+		if !isBackRef {
+			fieldName = "ToFQName"
+		} else {
+			fieldName = "FromFQName"
+		}
+		v, ok = base[fieldName]
+		fqnameStr, ok = v.(string)
+		if !ok {
+			return refs, fmt.Errorf("Field '%s' is not a string type: %v", fieldName, refEntityMap)
+		}
+		err = fqname.Scan(fqnameStr)
+		if err != nil {
+			return refs, err
+		}
+		ref["to"] = fqname
+		data, ok := base["Payload"]
+		if ok {
+			if payload, ok := data.(datatypes.JSON); ok {
+				err = json.Unmarshal(payload, &v)
+				if err != nil {
+					return refs, err
+				}
+				ref["attr"] = v
+			}
+		}
+		refs[i] = ref
+	}
+	return refs, nil
 }
 
 // ModelCreateHandler for request to create a model entity
