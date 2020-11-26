@@ -240,6 +240,12 @@ func GetFQNameByID(tx *gorm.DB, id uuid.UUID, entityType string) (string, error)
 
 // PopulateEntity with json payload
 func PopulateEntity(entity Entity, payload map[string]interface{}) (err error) {
+	model, ok := GetModelInfo(entity)
+	if !ok {
+		return fmt.Errorf("Model info not found: %s", utils.TypeOf(entity))
+	}
+
+	// populate the BaseModel
 	if uuidStr, ok := payload["uuid"]; ok {
 		if entity.BaseModel().ID, err = uuid.Parse(uuidStr.(string)); err != nil {
 			return err
@@ -268,17 +274,15 @@ func PopulateEntity(entity Entity, payload map[string]interface{}) (err error) {
 		entity.BaseModel().ParentID = parentID.(uuid.UUID)
 	}
 
-	// normalized fields
-	err = mapstructure.Decode(payload, &entity)
-	if err != nil {
-		return err
+	// populate the normalized fields
+	if len(model.NormalizedFields) > 0 {
+		err = mapstructure.Decode(payload, &entity)
+		if err != nil {
+			return err
+		}
 	}
 
-	// refs
-	model, ok := GetModelInfo(entity)
-	if !ok {
-		return fmt.Errorf("Model info not found: %s", utils.TypeOf(entity))
-	}
+	// populate the refs
 	entity.BaseModel().refs = make(map[string]interface{})
 	for _, refType := range model.RefTypes {
 		fieldName := refType + "_refs"
@@ -287,17 +291,36 @@ func PopulateEntity(entity Entity, payload map[string]interface{}) (err error) {
 		}
 	}
 
-	// remove refs and normalized from payload
-	for _, refType := range model.RefTypes {
-		fieldName := refType + "_refs"
-		delete(payload, fieldName)
-	}
-	for _, normalizedField := range model.NormalizedFields {
-		delete(payload, normalizedField)
-	}
+	// remove refs and updatable normalized fields from payload
+	payloadCleansing(&payload, model)
 	entity.BaseModel().payload = &payload
 
 	return err
+}
+
+func payloadCleansing(payload *map[string]interface{}, model ModelInfo) {
+	// remove display_name as it is normalized as BaseModel.DisplayName
+	delete(*payload, "display_name")
+
+	// remove normalized fields
+	for _, normalizedField := range model.NormalizedFields {
+		delete(*payload, normalizedField)
+	}
+
+	// remove refs as back_refs from payload as they are stored in a separate table
+	for _, refType := range model.RefTypes {
+		fieldName := refType + "_refs"
+		delete(*payload, fieldName)
+	}
+	for _, backRefType := range model.BackRefTypes {
+		fieldName := backRefType + "_back_refs"
+		delete(*payload, fieldName)
+	}
+
+	// remove child refs
+	for _, childType := range model.ChildTypes {
+		delete(*payload, childType)
+	}
 }
 
 // SaveEntity to the database
@@ -461,7 +484,6 @@ func (b *BaseModel) constructPayload(obj Entity) (err error) {
 		(*b.payload)["parent_uri"] = fmt.Sprintf("/%s/%s", b.ParentType, b.ParentID.String())
 	}
 	(*b.payload)["uri"] = fmt.Sprintf("/%s/%s", objType, idstr)
-	(*b.payload)["display_name"] = b.DisplayName
 
 	var fqname []string
 	if err = json.Unmarshal([]byte(b.FQName), &fqname); err != nil {

@@ -446,6 +446,28 @@ func TestRefCreation(t *testing.T) {
 	require.JSONEq(t, want, result)
 }
 
+func TestPartialUpdate(t *testing.T) {
+	e := setupTestcase(t)
+
+	// domain CRUD
+	createObj(t, e, "domain", `{"name": "default"}`)
+	createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
+
+	// device with ref
+	status, _ := createObj(t, e, "device", fmt.Sprintf(`{
+		"name": "mx-1",
+		"fq_name": ["default", "juniper", "mx-1"],
+		"parent_type": "project",
+		"region": "(800)331-5527",
+		"dic_op_info": {
+			"detected_dic_ip": "10.1.1.2",
+			"last_detection_timestamp": 13232233.775
+		},
+		"connection_type": "CSP_INITIATED"
+	}`))
+	require.Equal(t, http.StatusCreated, status)
+}
+
 type RequestInfo struct {
 	method         string
 	uri            string

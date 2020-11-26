@@ -116,18 +116,23 @@ func filterFields(payload []byte, fields []string) (map[string]interface{}, erro
 }
 
 func addNormalizedFieldsToPayload(entity models.Entity, normalizedFiledNames []string) (err error) {
-	if len(normalizedFiledNames) == 0 {
-		return nil
-	}
+	var (
+		fieldsMap map[string]interface{}
+		entityMap map[string]interface{}
+	)
 
 	payload := entity.BaseModel().Payload
-	entity.BaseModel().Payload = datatypes.JSON{}
+	payload = append(payload[:len(payload)-1],
+		[]byte(fmt.Sprintf(`,"display_name":"%s"}`, entity.BaseModel().DisplayName))...)
+	if len(normalizedFiledNames) == 0 {
+		goto FINALLY
+	}
 
-	var fieldsMap map[string]interface{}
-	entityMap := make(map[string]interface{})
+	entity.BaseModel().Payload = datatypes.JSON{}
+	entityMap = make(map[string]interface{})
 	err = mapstructure.Decode(entity, &entityMap)
 	if err != nil {
-		goto ERR
+		goto FINALLY
 	}
 	fieldsMap = make(map[string]interface{})
 	for _, fieldName := range normalizedFiledNames {
@@ -141,7 +146,9 @@ func addNormalizedFieldsToPayload(entity models.Entity, normalizedFiledNames []s
 			payload = append(payload, str[1:]...)
 		}
 	}
-ERR:
+	payload = append(payload[:len(payload)-1],
+		[]byte(fmt.Sprintf(`,"display_name":"%s"}`, entity.BaseModel().DisplayName))...)
+FINALLY:
 	entity.BaseModel().Payload = payload
 	return err
 }
@@ -444,8 +451,35 @@ func ModelGetHandler(c echo.Context) error {
 
 // ModelUpdateHandler for request to update a model entity
 func ModelUpdateHandler(c echo.Context) error {
-	msg := fmt.Sprintf("url: %s\nid: %s\nqstr=%s\n", c.Request().URL, c.Param("id"), c.QueryParam("qstr"))
-	return c.String(http.StatusOK, msg)
+	// get validated payload from context
+	validationErrMsg := c.Get("validationErrors")
+	if validationErrMsg != "" {
+		return c.String(http.StatusBadRequest, validationErrMsg.(string))
+	}
+	p := c.Get("validatedPayload")
+	if p == nil {
+		return fmt.Errorf("No validated payload found in the context")
+	}
+	payload := p.(map[string]interface{})
+
+	// update the entity
+	entityType := strings.Split(c.Path(), "/")[1]
+	entity, err := models.NewEntity(entityType)
+	if err != nil {
+		return err
+	}
+	err = models.PopulateEntity(entity, payload)
+	if err != nil {
+		return err
+	}
+
+	// save the entity to database
+	db := database.GormDB()
+	if err = models.SaveEntity(db, entity); err != nil {
+		return err
+	}
+
+	return c.String(http.StatusCreated, fmt.Sprintf("%s", entity.BaseModel().ID))
 }
 
 // ModelDeleteHandler for request to delete a model entity
