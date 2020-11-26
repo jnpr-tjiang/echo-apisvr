@@ -115,18 +115,53 @@ func filterFields(payload []byte, fields []string) (map[string]interface{}, erro
 	return filteredPayload, nil
 }
 
+func addNormalizedFieldsToPayload(entity models.Entity, normalizedFiledNames []string) (err error) {
+	if len(normalizedFiledNames) == 0 {
+		return nil
+	}
+
+	payload := entity.BaseModel().Payload
+	entity.BaseModel().Payload = datatypes.JSON{}
+
+	var fieldsMap map[string]interface{}
+	entityMap := make(map[string]interface{})
+	err = mapstructure.Decode(entity, &entityMap)
+	if err != nil {
+		goto ERR
+	}
+	fieldsMap = make(map[string]interface{})
+	for _, fieldName := range normalizedFiledNames {
+		if v, ok := entityMap[strings.Title(fieldName)]; ok {
+			fieldsMap[fieldName] = v
+		}
+	}
+	if len(fieldsMap) > 0 {
+		if str, err := json.Marshal(fieldsMap); err == nil {
+			payload[len(payload)-1] = ','
+			payload = append(payload, str[1:]...)
+		}
+	}
+ERR:
+	entity.BaseModel().Payload = payload
+	return err
+}
+
 func buildEntityPayload(db *gorm.DB, entity models.Entity, cfg PayloadCfg) (payload []byte, err error) {
+	modelInfo, ok := models.GetModelInfo(entity)
+	if !ok {
+		return []byte{}, fmt.Errorf("Failed to get model info for entity: %v", entity)
+	}
+
+	if err = addNormalizedFieldsToPayload(entity, modelInfo.NormalizedFields); err != nil {
+		return []byte{}, err
+	}
+
 	if !cfg.ShowDetails {
 		uuid := entity.BaseModel().ID.String()
 		payload := fmt.Sprintf(
 			`{"fq_name":%s,"uuid":"%s","uri":"/%s/%s"}`,
 			entity.BaseModel().FQName, uuid, strings.ToLower(utils.TypeOf(entity)), uuid)
 		return []byte(payload), nil
-	}
-
-	modelInfo, ok := models.GetModelInfo(entity)
-	if !ok {
-		return []byte{}, fmt.Errorf("Failed to get model info for entity: %v", entity)
 	}
 
 	var filteredPayload map[string]interface{}

@@ -79,6 +79,8 @@ func (entity *Device_family) BeforeCreate(tx *gorm.DB) error {
 // Device -----------------------------------------------------------------
 type Device struct {
 	Base BaseModel `gorm:"embedded" parentTypes:"domain,project"`
+	// fields
+	Connection_type string `gorm:"column:connction_type"`
 	// Many-Many relations
 	Device_families []Device_family `gorm:"many2many:device_device_families"`
 }

@@ -12,6 +12,7 @@ func AddCRUDRoutes(e *echo.Echo) {
 	for _, name := range models.ModelNames() {
 		path := "/" + name
 		e.POST(path, handler.ModelCreateHandler, middleware.JSONSchemaValidator())
+		e.GET(path, handler.ModelGetAllHandler)
 		e.GET(path+"/:id", handler.ModelGetHandler)
 		e.PUT(path+"/:id", handler.ModelUpdateHandler, middleware.JSONSchemaValidator())
 		e.DELETE(path+"/:id", handler.ModelDeleteHandler)

@@ -49,10 +49,11 @@ type (
 
 	// ModelInfo contains entity model meta info
 	ModelInfo struct {
-		ParentTypes  []string
-		ChildTypes   []string
-		RefTypes     []string
-		BackRefTypes []string
+		ParentTypes      []string
+		ChildTypes       []string
+		RefTypes         []string
+		BackRefTypes     []string
+		NormalizedFields []string
 	}
 )
 
@@ -74,7 +75,7 @@ func init() {
 	for k, v := range constructors {
 		obj := v()
 		if entity, ok := obj.(Entity); ok {
-			parentTypes, refTypes, err := reflectEntity(entity)
+			parentTypes, refTypes, fields, err := reflectEntity(entity)
 			if err != nil {
 				panic(err)
 			}
@@ -82,6 +83,7 @@ func init() {
 			model := ModelInfo{}
 			model.ParentTypes = parentTypes
 			model.RefTypes = refTypes
+			model.NormalizedFields = fields
 			models[k] = &model
 		}
 	}
@@ -104,21 +106,21 @@ func init() {
 	}
 }
 
-func reflectEntity(entity Entity) (parentTypes []string, refTypes []string, err error) {
+func reflectEntity(entity Entity) (parentTypes []string, refTypes []string, normalizedFields []string, err error) {
 	entityType := reflect.TypeOf(entity).Elem()
 
 	baseField, ok := entityType.FieldByName("Base")
 	if !ok {
-		return []string{}, []string{}, fmt.Errorf("Base field not found in entity: %s", entityType.Name())
+		return []string{}, []string{}, []string{}, fmt.Errorf("Base field not found in entity: %s", entityType.Name())
 	}
 	if baseField.Type.Name() != "BaseModel" {
-		return []string{}, []string{}, fmt.Errorf("Base field must be BaseModel type: %s", entityType.Name())
+		return []string{}, []string{}, []string{}, fmt.Errorf("Base field must be BaseModel type: %s", entityType.Name())
 	}
 	if v, ok := baseField.Tag.Lookup("parentTypes"); ok {
 		parentTypes = strings.Split(v, ",")
 		for i := 0; i < len(parentTypes); i++ {
 			if utils.IndexOf(modelNames, parentTypes[i]) < 0 {
-				return []string{}, []string{}, fmt.Errorf("[%s] Invalid parent type: %s", entityType.Name(), parentTypes[i])
+				return []string{}, []string{}, []string{}, fmt.Errorf("[%s] Invalid parent type: %s", entityType.Name(), parentTypes[i])
 			}
 		}
 	}
@@ -131,6 +133,8 @@ func reflectEntity(entity Entity) (parentTypes []string, refTypes []string, err 
 				for _, directive := range gormDirectives {
 					if strings.Index(strings.Trim(directive, " "), "many2many") >= 0 {
 						refTypes = append(refTypes, utils.Singularize(strings.ToLower(field.Name)))
+					} else {
+						normalizedFields = append(normalizedFields, strings.ToLower(field.Name))
 					}
 				}
 			}
@@ -138,11 +142,11 @@ func reflectEntity(entity Entity) (parentTypes []string, refTypes []string, err 
 	}
 	for i := 0; i < len(refTypes); i++ {
 		if utils.IndexOf(modelNames, refTypes[i]) < 0 {
-			return []string{}, []string{}, fmt.Errorf("[%s] Invalid ref type: %s", entityType.Name(), refTypes[i])
+			return []string{}, []string{}, []string{}, fmt.Errorf("[%s] Invalid ref type: %s", entityType.Name(), refTypes[i])
 		}
 	}
 
-	return parentTypes, refTypes, nil
+	return parentTypes, refTypes, normalizedFields, nil
 }
 
 func findEntity(db *gorm.DB, dest interface{}, conds ...interface{}) ([]Entity, error) {
@@ -264,6 +268,12 @@ func PopulateEntity(entity Entity, payload map[string]interface{}) (err error) {
 		entity.BaseModel().ParentID = parentID.(uuid.UUID)
 	}
 
+	// normalized fields
+	err = mapstructure.Decode(payload, &entity)
+	if err != nil {
+		return err
+	}
+
 	// refs
 	model, ok := GetModelInfo(entity)
 	if !ok {
@@ -277,10 +287,13 @@ func PopulateEntity(entity Entity, payload map[string]interface{}) (err error) {
 		}
 	}
 
-	// remove refs from payload
+	// remove refs and normalized from payload
 	for _, refType := range model.RefTypes {
 		fieldName := refType + "_refs"
 		delete(payload, fieldName)
+	}
+	for _, normalizedField := range model.NormalizedFields {
+		delete(payload, normalizedField)
 	}
 	entity.BaseModel().payload = &payload
 

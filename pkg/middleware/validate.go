@@ -21,6 +21,9 @@ func JSONSchemaValidator() echo.MiddlewareFunc {
 		schemaFile := config.GetConfig().Server.Schema
 		sl := gojsonschema.NewReferenceLoader(fmt.Sprintf("file:///%s", schemaFile))
 		schema, err = gojsonschema.NewSchema(sl)
+		if err != nil {
+			panic(err)
+		}
 	}
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
