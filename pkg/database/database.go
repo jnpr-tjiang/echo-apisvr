@@ -9,6 +9,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 var (
@@ -26,7 +27,10 @@ func Init(cfg *config.Configuration) (*gorm.DB, error) {
 
 	if driver == "sqlite3" { // SQLITE
 		dbFile := fmt.Sprintf("./%s.db", dbName)
-		db, err = gorm.Open(sqlite.Open(dbFile), &gorm.Config{})
+		db, err = gorm.Open(sqlite.Open(dbFile), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Warn),
+			// Logger: logger.Default.LogMode(logger.Info),
+		})
 	} else if driver == "postgres" { // POSTGRES
 		dsn := fmt.Sprintf("user=%s host=%s port=%s dbname=%s", username, host, port, dbName)
 		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})

@@ -115,16 +115,40 @@ func filterFields(payload []byte, fields []string) (map[string]interface{}, erro
 	return filteredPayload, nil
 }
 
-func addNormalizedFieldsToPayload(entity models.Entity, normalizedFiledNames []string) (err error) {
+func addBaseModelToPayload(entity models.Entity) {
+	uuidStr := entity.BaseModel().ID.String()
+	entityType := strings.ToLower(utils.TypeOf(entity))
+	var str string
+	if entity.BaseModel().ParentType == "" {
+		str = fmt.Sprintf(
+			`,"uuid":"%s","uri":"/%s/%s","name":"%s","fq_name":%s,"display_name":"%s"}`,
+			uuidStr, entityType, uuidStr, entity.BaseModel().Name,
+			entity.BaseModel().FQName, entity.BaseModel().DisplayName)
+	} else {
+		str = fmt.Sprintf(
+			`,"uuid":"%s","uri":"/%s/%s","name":"%s","fq_name":%s,"display_name":"%s","parent_type":"%s","parent_uuid":"%s","parent_uri":"/%s/%s"}`,
+			uuidStr, entityType, uuidStr, entity.BaseModel().Name, entity.BaseModel().FQName,
+			entity.BaseModel().DisplayName, entity.BaseModel().ParentType, entity.BaseModel().ParentID,
+			entity.BaseModel().ParentType, entity.BaseModel().ParentID)
+	}
+	payload := entity.BaseModel().Payload
+	if len(payload) == 2 { // empty json. This looks like a hack. TODO: refactor this method to models?
+		payload = []byte(str)
+		payload[0] = '{'
+	} else {
+		payload = append(payload[:len(payload)-1], str...)
+	}
+	entity.BaseModel().Payload = payload
+}
+
+func addNormalizedFieldsToPayload(entity models.Entity, normalizedFieldNames []string) (err error) {
 	var (
 		fieldsMap map[string]interface{}
 		entityMap map[string]interface{}
+		payload   datatypes.JSON = entity.BaseModel().Payload
 	)
 
-	payload := entity.BaseModel().Payload
-	payload = append(payload[:len(payload)-1],
-		[]byte(fmt.Sprintf(`,"display_name":"%s"}`, entity.BaseModel().DisplayName))...)
-	if len(normalizedFiledNames) == 0 {
+	if len(normalizedFieldNames) == 0 {
 		goto FINALLY
 	}
 
@@ -135,7 +159,7 @@ func addNormalizedFieldsToPayload(entity models.Entity, normalizedFiledNames []s
 		goto FINALLY
 	}
 	fieldsMap = make(map[string]interface{})
-	for _, fieldName := range normalizedFiledNames {
+	for _, fieldName := range normalizedFieldNames {
 		if v, ok := entityMap[strings.Title(fieldName)]; ok {
 			fieldsMap[fieldName] = v
 		}
@@ -154,21 +178,21 @@ FINALLY:
 }
 
 func buildEntityPayload(db *gorm.DB, entity models.Entity, cfg PayloadCfg) (payload []byte, err error) {
-	modelInfo, ok := models.GetModelInfo(entity)
-	if !ok {
-		return []byte{}, fmt.Errorf("Failed to get model info for entity: %v", entity)
-	}
-
-	if err = addNormalizedFieldsToPayload(entity, modelInfo.NormalizedFields); err != nil {
-		return []byte{}, err
-	}
-
 	if !cfg.ShowDetails {
 		uuid := entity.BaseModel().ID.String()
 		payload := fmt.Sprintf(
 			`{"fq_name":%s,"uuid":"%s","uri":"/%s/%s"}`,
 			entity.BaseModel().FQName, uuid, strings.ToLower(utils.TypeOf(entity)), uuid)
 		return []byte(payload), nil
+	}
+
+	modelInfo, ok := models.GetModelInfo(entity)
+	if !ok {
+		return []byte{}, fmt.Errorf("Failed to get model info for entity: %v", entity)
+	}
+	addBaseModelToPayload(entity)
+	if err = addNormalizedFieldsToPayload(entity, modelInfo.NormalizedFields); err != nil {
+		return []byte{}, err
 	}
 
 	var filteredPayload map[string]interface{}
@@ -462,7 +486,7 @@ func ModelUpdateHandler(c echo.Context) error {
 	}
 	payload := p.(map[string]interface{})
 
-	// update the entity
+	// create the entity
 	entityType := strings.Split(c.Path(), "/")[1]
 	entity, err := models.NewEntity(entityType)
 	if err != nil {
@@ -472,10 +496,15 @@ func ModelUpdateHandler(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+	uuid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return err
+	}
 
 	// save the entity to database
 	db := database.GormDB()
-	if err = models.SaveEntity(db, entity); err != nil {
+	entity.BaseModel().ID = uuid
+	if err = models.UpdateEntity(db, entity); err != nil {
 		return err
 	}
 

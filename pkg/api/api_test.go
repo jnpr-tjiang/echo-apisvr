@@ -451,10 +451,10 @@ func TestPartialUpdate(t *testing.T) {
 
 	// domain CRUD
 	createObj(t, e, "domain", `{"name": "default"}`)
-	createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
+	_, projectID := createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
 
 	// device with ref
-	status, _ := createObj(t, e, "device", fmt.Sprintf(`{
+	status, deviceID := createObj(t, e, "device", fmt.Sprintf(`{
 		"name": "mx-1",
 		"fq_name": ["default", "juniper", "mx-1"],
 		"parent_type": "project",
@@ -466,6 +466,59 @@ func TestPartialUpdate(t *testing.T) {
 		"connection_type": "CSP_INITIATED"
 	}`))
 	require.Equal(t, http.StatusCreated, status)
+
+	status, _ = updateObj(t, e, "device", deviceID, fmt.Sprintf(`{
+		"connection_type": "DEVICE_INITIATED"
+	}`))
+	require.Equal(t, http.StatusOK, status)
+
+	status, result := getObjByID(t, e, "device", deviceID, handler.PayloadCfg{})
+	want := fmt.Sprintf(`{
+		"device": {
+			"name": "mx-1",
+			"uri": "/device/%s",
+			"uuid": "%s",
+			"fq_name": ["default", "juniper", "mx-1"],
+			"region": "(800)331-5527",
+			"parent_uri": "/project/%s",
+			"dic_op_info": {
+				"detected_dic_ip": "10.1.1.2",
+				"last_detection_timestamp": 13232233.775
+			},
+			"parent_type": "project",
+			"parent_uuid": "%s",
+			"display_name": "mx-1",
+			"connection_type": "DEVICE_INITIATED"
+		}	
+	}`, deviceID, deviceID, projectID, projectID)
+	require.JSONEq(t, want, result)
+
+	status, _ = updateObj(t, e, "device", deviceID, fmt.Sprintf(`{
+		"region": "(800)386-1943",
+		"connection_type": "DEVICE_INITIATED"
+	}`))
+	require.Equal(t, http.StatusOK, status)
+
+	status, result = getObjByID(t, e, "device", deviceID, handler.PayloadCfg{})
+	want = fmt.Sprintf(`{
+		"device": {
+			"name": "mx-1",
+			"uri": "/device/%s",
+			"uuid": "%s",
+			"fq_name": ["default", "juniper", "mx-1"],
+			"region": "(800)386-1943",
+			"parent_uri": "/project/%s",
+			"dic_op_info": {
+				"detected_dic_ip": "10.1.1.2",
+				"last_detection_timestamp": 13232233.775
+			},
+			"parent_type": "project",
+			"parent_uuid": "%s",
+			"display_name": "mx-1",
+			"connection_type": "DEVICE_INITIATED"
+		}	
+	}`, deviceID, deviceID, projectID, projectID)
+	require.JSONEq(t, want, result)
 }
 
 type RequestInfo struct {
@@ -537,6 +590,22 @@ func getObjByID(t *testing.T, e *echo.Echo, objType string, objID string, cfg ha
 		payload:        "",
 		middlewareFunc: nil,
 		handlerFunc:    handler.ModelGetHandler,
+		ctxInit: func(c echo.Context) {
+			c.SetPath(fmt.Sprintf("/%s/:id", objType))
+			c.SetParamNames("id")
+			c.SetParamValues(objID)
+		},
+	})
+	return http.StatusOK, rec.Body.String()
+}
+
+func updateObj(t *testing.T, e *echo.Echo, objType string, objID string, payload string) (int, string) {
+	rec := executeRequest(t, e, RequestInfo{
+		method:         http.MethodPut,
+		uri:            fmt.Sprintf("/%s/%s", objType, objID),
+		payload:        payload,
+		middlewareFunc: middleware.JSONSchemaValidator(),
+		handlerFunc:    handler.ModelUpdateHandler,
 		ctxInit: func(c echo.Context) {
 			c.SetPath(fmt.Sprintf("/%s/:id", objType))
 			c.SetParamNames("id")

@@ -17,12 +17,12 @@ import (
 type (
 	// BaseModel - base database entity model
 	BaseModel struct {
-		ID          uuid.UUID               `gorm:"column:id;type:uuid;primary_key"`
+		ID          uuid.UUID               `gorm:"column:id;type:uuid;primary_key:<-create"`
 		Name        string                  `gorm:"column:name;size:128;not null;<-:create"`
 		DisplayName string                  `gorm:"column:display_name;size:128;not null"`
-		ParentID    uuid.UUID               `gorm:"column:parent_id;type:uuid"`
-		ParentType  string                  `gorm:"column:parent_type"`
-		FQName      string                  `gorm:"column:fqname;not null;uniqueIndex"`
+		ParentID    uuid.UUID               `gorm:"column:parent_id;type:uuid;<-:create"`
+		ParentType  string                  `gorm:"column:parent_type;<-:create"`
+		FQName      string                  `gorm:"column:fqname;not null;uniqueIndex;<:create"`
 		Payload     datatypes.JSON          `gorm:"column:payload"`
 		payload     *map[string]interface{} `gorm:"-"`
 		refs        map[string]interface{}  `gorm:"-"`
@@ -212,7 +212,7 @@ func ModelNames() []string {
 
 // GetModelInfo return entity model meta info
 func GetModelInfo(entity Entity) (ModelInfo, bool) {
-	m, ok := models[strings.ToLower(utils.TypeOf(entity))]
+	m, ok := models[EntityType(entity)]
 	return *m, ok
 }
 
@@ -299,8 +299,16 @@ func PopulateEntity(entity Entity, payload map[string]interface{}) (err error) {
 }
 
 func payloadCleansing(payload *map[string]interface{}, model ModelInfo) {
-	// remove display_name as it is normalized as BaseModel.DisplayName
+	// remove all duplicated fields that are captured in the BaseModel or
+	// could be generated from the BaseModel
+	delete(*payload, "uuid")
+	delete(*payload, "uri")
+	delete(*payload, "name")
+	delete(*payload, "fq_name")
 	delete(*payload, "display_name")
+	delete(*payload, "parent_type")
+	delete(*payload, "parent_uuid")
+	delete(*payload, "parent_uri")
 
 	// remove normalized fields
 	for _, normalizedField := range model.NormalizedFields {
@@ -323,6 +331,11 @@ func payloadCleansing(payload *map[string]interface{}, model ModelInfo) {
 	}
 }
 
+// EntityType return entity type
+func EntityType(entity Entity) string {
+	return strings.ToLower(utils.TypeOf(entity))
+}
+
 // SaveEntity to the database
 func SaveEntity(db *gorm.DB, entity Entity) error {
 	return db.Transaction(func(tx *gorm.DB) (err error) {
@@ -331,10 +344,9 @@ func SaveEntity(db *gorm.DB, entity Entity) error {
 		}
 		for k, v := range entity.BaseModel().refs {
 			if refs, ok := v.([]interface{}); ok {
-				fromType := strings.ToLower(utils.TypeOf(entity))
 				toType := k
 				for _, refData := range refs {
-					refEntity, err := NewRefEntity(fromType + toType)
+					refEntity, err := NewRefEntity(EntityType(entity) + toType)
 					if err != nil {
 						return err
 					}
@@ -347,6 +359,62 @@ func SaveEntity(db *gorm.DB, entity Entity) error {
 				}
 			}
 		}
+		return err
+	})
+}
+
+func zeroizeReadonlyFields(entity Entity) {
+	entity.BaseModel().Name = ""
+	entity.BaseModel().ParentID = uuid.UUID{}
+	entity.BaseModel().ParentType = ""
+	entity.BaseModel().FQName = ""
+}
+
+// UpdateEntity to the database
+func UpdateEntity(db *gorm.DB, entity Entity) error {
+	return db.Transaction(func(tx *gorm.DB) (err error) {
+		// zeroize the readonly fields (such as fqname, etc) so that they are not updated by gorm
+		zeroizeReadonlyFields(entity)
+
+		if len(*entity.BaseModel().payload) == 0 {
+			if err = tx.Updates(entity).Error; err != nil {
+				return err
+			}
+		} else {
+			currentEntity, _ := NewEntity(EntityType(entity))
+			if err = tx.First(currentEntity).Error; err != nil {
+				return err
+			}
+			var payloadJSON map[string]interface{}
+			if err = json.Unmarshal(currentEntity.BaseModel().Payload, &payloadJSON); err != nil {
+				return err
+			}
+			for k, v := range *entity.BaseModel().payload {
+				payloadJSON[k] = v
+			}
+			entity.BaseModel().Payload, err = json.Marshal(payloadJSON)
+			if err = tx.Updates(entity).Error; err != nil {
+				return err
+			}
+		}
+
+		// for k, v := range entity.BaseModel().refs {
+		// 	if refs, ok := v.([]interface{}); ok {
+		// 		toType := k
+		// 		for _, refData := range refs {
+		// 			refEntity, err := NewRefEntity(entityType + toType)
+		// 			if err != nil {
+		// 				return err
+		// 			}
+		// 			if err = loadRefEntity(tx, refEntity, entity, toType, refData); err != nil {
+		// 				return err
+		// 			}
+		// 			if err = tx.Create(refEntity).Error; err != nil {
+		// 				return err
+		// 			}
+		// 		}
+		// 	}
+		// }
 		return err
 	})
 }
@@ -430,7 +498,7 @@ func (b *BaseModel) preCreate(tx *gorm.DB, obj Entity) (err error) {
 	}
 
 	// set or validate the parent type
-	objType := strings.ToLower(utils.TypeOf(obj))
+	objType := EntityType(obj)
 	m, ok := models[objType]
 	if !ok {
 		return fmt.Errorf("Model not supported: %s", objType)
@@ -470,27 +538,6 @@ func (b *BaseModel) preCreate(tx *gorm.DB, obj Entity) (err error) {
 			return fmt.Errorf("Both fqname and parentID are not set")
 		}
 	}
-	b.constructPayload(obj)
-	return nil
-}
-
-func (b *BaseModel) constructPayload(obj Entity) (err error) {
-	idstr := b.ID.String()
-	objType := strings.ToLower(utils.TypeOf(obj))
-	(*b.payload)["uuid"] = idstr
-	if b.ParentType != "" {
-		(*b.payload)["parent_type"] = b.ParentType
-		(*b.payload)["parent_uuid"] = b.ParentID.String()
-		(*b.payload)["parent_uri"] = fmt.Sprintf("/%s/%s", b.ParentType, b.ParentID.String())
-	}
-	(*b.payload)["uri"] = fmt.Sprintf("/%s/%s", objType, idstr)
-
-	var fqname []string
-	if err = json.Unmarshal([]byte(b.FQName), &fqname); err != nil {
-		return err
-	}
-	(*b.payload)["fq_name"] = fqname
-
 	b.Payload, err = json.Marshal(*b.payload)
 	return err
 }
