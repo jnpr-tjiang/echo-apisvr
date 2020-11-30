@@ -74,17 +74,17 @@ func TestBasicCRUD(t *testing.T) {
 	require.JSONEq(t, want, result)
 
 	// device
-	status, deviceID := createObj(t, e, "device", `{
+	status, deviceID := createObj(t, e, "device", fmt.Sprintf(`{
 		"name": "junos",
-		"fq_name": ["default", "juniper", "junos"],
 		"parent_type": "project",
 		"region": "(510)386-1943",
 		"dic_op_info": {
 			"detected_dic_ip": "10.1.1.2",
 			"last_detection_timestamp": 13232233.775
 		},
-		"connection_type": "CSP_INITIATED"
-	}`)
+		"connection_type": "CSP_INITIATED",
+		"parent_uuid": "%s"
+	}`, projectID))
 	require.Equal(t, http.StatusCreated, status)
 	status, result = getObjByID(t, e, "device", deviceID, handler.PayloadCfg{})
 	require.Equal(t, http.StatusOK, status)
