@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -175,6 +176,176 @@ func TestGetAll(t *testing.T) {
 	t.Logf("want:\n%s\n", want)
 	t.Logf("actual:\n%s\n", result)
 	require.JSONEq(t, want, result)
+}
+
+func contains(arr []string, str string) bool {
+	for _, a := range arr {
+		if a == str {
+			return true
+		}
+	}
+	return false
+}
+
+type responseBasicPayload struct {
+	Total  int `json:"total"`
+	Device []struct {
+		FqName []string `json:"fq_name"`
+		UUID   string   `json:"uuid"`
+		URI    string   `json:"uri"`
+	} `json:"device"`
+}
+
+func getObjsWithMultiIDs(t *testing.T, e *echo.Echo, objType string, objUUIDS []string) (int, string) {
+	uri := "/" + objType
+
+	if objUUIDS != nil {
+		uri += "?obj_uuids="
+		for _, item := range objUUIDS {
+			uri += item + ","
+		}
+		uri = strings.TrimRight(uri, ",")
+	}
+	rec := executeRequest(t, e, RequestInfo{
+		method:         http.MethodGet,
+		uri:            uri,
+		payload:        "",
+		middlewareFunc: nil,
+		handlerFunc:    handler.ModelGetAllHandler,
+		ctxInit: func(c echo.Context) {
+			c.SetPath(fmt.Sprintf("/%s", objType))
+		},
+	})
+	return rec.Code, rec.Body.String()
+}
+func TestGetMultipleObjectUUIDFetch(t *testing.T) {
+	e := setupTestcase(t)
+
+	// domain Create
+	_, domainID := createObj(t, e, "domain", `{"name": "default"}`)
+
+	// device CRUD
+	_, d1 := createObj(t, e, "device", fmt.Sprintf(`{"name": "d1", "fqname": "d1", "parent_uuid": "%s" }`, domainID))
+	_, d2 := createObj(t, e, "device", fmt.Sprintf(`{"name": "d2", "fqname": "d2", "parent_uuid": "%s" }`, domainID))
+	createObj(t, e, "device", fmt.Sprintf(`{"name": "d3", "fqname": "d3", "parent_uuid": %s }`, domainID))
+
+	// multiple
+	status, results := getObjsWithMultiIDs(t, e, "device", []string{d1, d2})
+
+	require.Equal(t, http.StatusOK, status)
+	var response responseBasicPayload
+	json.Unmarshal([]byte(results), &response)
+
+	expected := []string{d1, d2}
+	totalDevicesExpected := 2
+	require.Equal(t, totalDevicesExpected, response.Total)
+
+	for _, d := range response.Device {
+		require.True(t, true, contains(expected, d.UUID))
+	}
+}
+
+func getObjsWithParentIDs(t *testing.T, e *echo.Echo, objType string, parentIDS []string) (int, string) {
+	uri := "/" + objType
+
+	if parentIDS != nil {
+		uri += "?parent_id="
+		for _, item := range parentIDS {
+			uri += item + ","
+		}
+		uri = strings.TrimRight(uri, ",")
+	}
+	rec := executeRequest(t, e, RequestInfo{
+		method:         http.MethodGet,
+		uri:            uri,
+		payload:        "",
+		middlewareFunc: nil,
+		handlerFunc:    handler.ModelGetAllHandler,
+		ctxInit: func(c echo.Context) {
+			c.SetPath(fmt.Sprintf("/%s", objType))
+		},
+	})
+	return rec.Code, rec.Body.String()
+}
+
+func TestGetParentIDFilter(t *testing.T) {
+	e := setupTestcase(t)
+
+	// domain Create
+	_, domainID1 := createObj(t, e, "domain", `{"name": "domain1"}`)
+	_, domainID2 := createObj(t, e, "domain", `{"name": "domain2"}`)
+	_, domainID4 := createObj(t, e, "domain", `{"name": "domain4"}`)
+
+	// device CRUD
+	_, d1 := createObj(t, e, "device", fmt.Sprintf(`{"name": "d1", "fqname": "d1", "parent_uuid": "%s" }`, domainID1))
+	_, d2 := createObj(t, e, "device", fmt.Sprintf(`{"name": "d2", "fqname": "d2", "parent_uuid": "%s" }`, domainID2))
+	_, d3 := createObj(t, e, "device", fmt.Sprintf(`{"name": "d3", "fqname": "d3", "parent_uuid": "%s" }`, domainID2))
+
+	// extra device
+	createObj(t, e, "device", fmt.Sprintf(`{"name": "d4", "fqname": "d4", "parent_uuid": %s }`, domainID4))
+
+	// multiple
+	status, results := getObjsWithParentIDs(t, e, "device", []string{domainID1, domainID2, domainID4})
+	require.Equal(t, http.StatusOK, status)
+	var response responseBasicPayload
+	json.Unmarshal([]byte(results), &response)
+
+	expected := []string{d1, d2, d3}
+	totalDevicesExpected := 3
+	require.Equal(t, totalDevicesExpected, response.Total)
+
+	for _, d := range response.Device {
+		require.True(t, true, contains(expected, d.UUID))
+	}
+}
+
+func getObjsWithFQNameStr(t *testing.T, e *echo.Echo, objType string, fqnameStr []string) (int, string) {
+	uri := "/" + objType
+
+	if fqnameStr != nil {
+		uri += "?fq_name_str="
+		for _, item := range fqnameStr {
+			uri += item + ","
+		}
+		uri = strings.TrimRight(uri, ",")
+	}
+	rec := executeRequest(t, e, RequestInfo{
+		method:         http.MethodGet,
+		uri:            uri,
+		payload:        "",
+		middlewareFunc: nil,
+		handlerFunc:    handler.ModelGetAllHandler,
+		ctxInit: func(c echo.Context) {
+			c.SetPath(fmt.Sprintf("/%s", objType))
+		},
+	})
+	return rec.Code, rec.Body.String()
+}
+
+func TestFqNameFilter(t *testing.T) {
+	e := setupTestcase(t)
+
+	// domain Create
+	_, domainID := createObj(t, e, "domain", `{"name": "domain"}`)
+
+	// device CRUD
+	_, d1 := createObj(t, e, "device", fmt.Sprintf(`{"name": "d1", "fqname": "d1", "parent_uuid": "%s" }`, domainID))
+	_, d2 := createObj(t, e, "device", fmt.Sprintf(`{"name": "d2", "fqname": "d2", "parent_uuid": "%s" }`, domainID))
+	createObj(t, e, "device", fmt.Sprintf(`{"name": "d3", "fqname": "d3", "parent_uuid": "%s" }`, domainID))
+
+	// multiple
+	status, results := getObjsWithFQNameStr(t, e, "device", []string{"domain:d1", "domain:d2"})
+	require.Equal(t, http.StatusOK, status)
+	var response responseBasicPayload
+	json.Unmarshal([]byte(results), &response)
+
+	expected := []string{d1, d2}
+	totalDevicesExpected := 2
+	require.Equal(t, totalDevicesExpected, response.Total)
+
+	for _, d := range response.Device {
+		require.True(t, true, contains(expected, d.UUID))
+	}
 }
 
 func TestFieldFilter(t *testing.T) {

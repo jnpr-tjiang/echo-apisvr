@@ -271,7 +271,7 @@ func PopulateEntity(entity Entity, payload map[string]interface{}) (err error) {
 		entity.BaseModel().ParentType = parentType.(string)
 	}
 	if parentID, ok := payload["parent_uuid"]; ok {
-		entity.BaseModel().ParentID = parentID.(uuid.UUID)
+		entity.BaseModel().ParentID = uuid.MustParse(parentID.(string))
 	}
 
 	// populate the normalized fields

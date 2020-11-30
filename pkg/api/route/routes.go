@@ -16,5 +16,8 @@ func AddCRUDRoutes(e *echo.Echo) {
 		e.GET(path+"/:id", handler.ModelGetHandler)
 		e.PUT(path+"/:id", handler.ModelUpdateHandler, middleware.JSONSchemaValidator())
 		e.DELETE(path+"/:id", handler.ModelDeleteHandler)
+
+		// list fetch.
+		e.GET(path, handler.ModelGetAllHandler)
 	}
 }
