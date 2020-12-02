@@ -18,11 +18,11 @@ import (
 	"gorm.io/gorm"
 )
 
-type resourceParams struct {
-	objectUUIDList  []uuid.UUID
-	parentUUIDList  []uuid.UUID
-	backRefUUIDList []uuid.UUID
-	fqNameStrList   []interface{}
+type bulkQueryParams struct {
+	objectUUIDs  []uuid.UUID
+	parentUUIDs  []uuid.UUID
+	backRefUUIDs []uuid.UUID
+	fqNameStrs   []interface{}
 }
 
 // PayloadCfg instructs how to build the payload
@@ -437,15 +437,17 @@ func ModelGetAllHandler(c echo.Context) error {
 	db := database.GormDB()
 	var entities []models.Entity
 
-	params, err := prepareResourceParams(c)
-	if err == nil && (params.fqNameStrList != nil || params.objectUUIDList != nil || params.parentUUIDList != nil) {
-		if params.parentUUIDList != nil {
-			entities, err = entity.Find(db, "parent_id IN ?", params.parentUUIDList)
-		} else if params.objectUUIDList != nil {
-			entities, err = entity.Find(db, params.objectUUIDList)
-		} else if params.fqNameStrList != nil {
-			entities, err = entity.Find(db, "fqname IN ?", params.fqNameStrList)
-		}
+	params, err := prepareBulkQueryParams(c)
+	if err != nil {
+		return err
+	}
+
+	if params.parentUUIDs != nil {
+		entities, err = entity.Find(db, "parent_id IN ?", params.parentUUIDs)
+	} else if params.objectUUIDs != nil {
+		entities, err = entity.Find(db, params.objectUUIDs)
+	} else if params.fqNameStrs != nil {
+		entities, err = entity.Find(db, "fqname IN ?", params.fqNameStrs)
 	} else {
 		entities, err = entity.Find(db)
 	}
@@ -550,32 +552,43 @@ func ModelDeleteHandler(c echo.Context) error {
 	return c.String(http.StatusOK, fmt.Sprintf("%s", uuid.String()))
 }
 
-func prepareResourceParams(c echo.Context) (resourceParams, error) {
-	var r resourceParams
+func prepareBulkQueryParams(c echo.Context) (bulkQueryParams, error) {
+	var r bulkQueryParams
+	var err error
 
-	// TODO backrefid case and error case.
+	// TODO backrefid case
 
 	if c.QueryParam("parent_id") != "" {
 		stringArray := strings.Split(c.QueryParam("parent_id"), ",")
-
 		for _, val := range stringArray {
 			val = strings.Trim(val, " ")
-			r.parentUUIDList = append(r.parentUUIDList, uuid.MustParse(val))
+			id, err := uuid.Parse(val)
+			if err != nil {
+				return r, err
+			}
+			r.parentUUIDs = append(r.parentUUIDs, id)
 		}
 	} else if c.QueryParam("obj_uuids") != "" {
 		stringArray := strings.Split(c.QueryParam("obj_uuids"), ",")
 
 		for _, val := range stringArray {
 			val = strings.Trim(val, " ")
-			r.objectUUIDList = append(r.objectUUIDList, uuid.MustParse(val))
+			id, err := uuid.Parse(val)
+			if err != nil {
+				return r, err
+			}
+			r.objectUUIDs = append(r.objectUUIDs, id)
 		}
 	} else if c.QueryParam("fq_name_str") != "" {
 		stringArray := strings.Split(c.QueryParam("fq_name_str"), ",")
 		for _, val := range stringArray {
 			val = strings.Trim(val, " ")
-			fqn := custom.FQName(strings.Split(val, ":"))
-			r.fqNameStrList = append(r.fqNameStrList, fqn)
+			fqn, err := custom.FQName(strings.Split(val, ":")).Value()
+			if err != nil {
+				return r, err
+			}
+			r.fqNameStrs = append(r.fqNameStrs, fqn)
 		}
 	}
-	return r, nil
+	return r, err
 }
