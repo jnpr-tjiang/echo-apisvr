@@ -3,7 +3,7 @@ Echo based API Server
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/jnpr-tjiang/echo-apisvr)](https://goreportcard.com/report/github.com/jnpr-tjiang/echo-apisvr)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![CircleCI](https://circleci.com/gh/jnpr-tjiang/echo-apisvr.svg?style=svg)](https://circleci.com/gh/jnpr-tjiang/echo-apisvr)
+[![CircleCI](https://circleci.com/gh/jnpr-tjiang/echo-apisvr.svg?style=shield)](https://circleci.com/gh/jnpr-tjiang/echo-apisvr)
 
 
 ## Dev env setup with vscode
