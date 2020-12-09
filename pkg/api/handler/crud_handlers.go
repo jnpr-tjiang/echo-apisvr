@@ -18,6 +18,13 @@ import (
 	"gorm.io/gorm"
 )
 
+type bulkQueryParams struct {
+	objectUUIDs  []uuid.UUID
+	parentUUIDs  []uuid.UUID
+	backRefUUIDs []uuid.UUID
+	fqNameStrs   []interface{}
+}
+
 // PayloadCfg instructs how to build the payload
 type PayloadCfg struct {
 	ShowDetails  bool
@@ -460,7 +467,23 @@ func ModelGetAllHandler(c echo.Context) error {
 	}
 
 	db := database.GormDB()
-	entities, err := entity.Find(db)
+	var entities []models.Entity
+
+	params, err := prepareBulkQueryParams(c)
+	if err != nil {
+		return err
+	}
+
+	if params.parentUUIDs != nil {
+		entities, err = entity.Find(db, "parent_id IN ?", params.parentUUIDs)
+	} else if params.objectUUIDs != nil {
+		entities, err = entity.Find(db, params.objectUUIDs)
+	} else if params.fqNameStrs != nil {
+		entities, err = entity.Find(db, "fqname IN ?", params.fqNameStrs)
+	} else {
+		entities, err = entity.Find(db)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -559,4 +582,45 @@ func ModelDeleteHandler(c echo.Context) error {
 		return err
 	}
 	return c.String(http.StatusOK, fmt.Sprintf("%s", uuid.String()))
+}
+
+func prepareBulkQueryParams(c echo.Context) (bulkQueryParams, error) {
+	var r bulkQueryParams
+	var err error
+
+	// TODO backrefid case
+
+	if c.QueryParam("parent_id") != "" {
+		stringArray := strings.Split(c.QueryParam("parent_id"), ",")
+		for _, val := range stringArray {
+			val = strings.Trim(val, " ")
+			id, err := uuid.Parse(val)
+			if err != nil {
+				return r, err
+			}
+			r.parentUUIDs = append(r.parentUUIDs, id)
+		}
+	} else if c.QueryParam("obj_uuids") != "" {
+		stringArray := strings.Split(c.QueryParam("obj_uuids"), ",")
+
+		for _, val := range stringArray {
+			val = strings.Trim(val, " ")
+			id, err := uuid.Parse(val)
+			if err != nil {
+				return r, err
+			}
+			r.objectUUIDs = append(r.objectUUIDs, id)
+		}
+	} else if c.QueryParam("fq_name_str") != "" {
+		stringArray := strings.Split(c.QueryParam("fq_name_str"), ",")
+		for _, val := range stringArray {
+			val = strings.Trim(val, " ")
+			fqn, err := custom.FQName(strings.Split(val, ":")).Value()
+			if err != nil {
+				return r, err
+			}
+			r.fqNameStrs = append(r.fqNameStrs, fqn)
+		}
+	}
+	return r, err
 }
