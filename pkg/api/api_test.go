@@ -826,7 +826,8 @@ func setupTestcase(t *testing.T) *echo.Echo {
 	cfg := config.GetConfig()
 	(*cfg).Database.Driver = "sqlite3"
 	(*cfg).Database.Dbname = "test"
-
+	(*cfg).Server.Schema = os.Getenv("SCHEMA")
+	
 	e := echo.New()
 	e.Debug = true
 	_, err := database.Init(cfg)
