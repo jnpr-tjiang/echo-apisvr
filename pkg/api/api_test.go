@@ -15,6 +15,7 @@ import (
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/config"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/database"
 	"github.com/jnpr-tjiang/echo-apisvr/pkg/middleware"
+	"github.com/jnpr-tjiang/echo-apisvr/pkg/utils"
 	"github.com/labstack/echo"
 	"github.com/stretchr/testify/require"
 )
@@ -178,15 +179,6 @@ func TestGetAll(t *testing.T) {
 	require.JSONEq(t, want, result)
 }
 
-func contains(arr []string, str string) bool {
-	for _, a := range arr {
-		if a == str {
-			return true
-		}
-	}
-	return false
-}
-
 type responseBasicPayload struct {
 	Total  int `json:"total"`
 	Device []struct {
@@ -241,7 +233,7 @@ func TestGetMultipleObjectUUIDFetch(t *testing.T) {
 	require.Equal(t, totalDevicesExpected, response.Total)
 
 	for _, d := range response.Device {
-		require.True(t, true, contains(expected, d.UUID))
+		require.True(t, true, utils.IndexOf(expected, d.UUID) != -1)
 	}
 }
 
@@ -295,7 +287,7 @@ func TestGetParentIDFilter(t *testing.T) {
 	require.Equal(t, totalDevicesExpected, response.Total)
 
 	for _, d := range response.Device {
-		require.True(t, true, contains(expected, d.UUID))
+		require.True(t, true, utils.IndexOf(expected, d.UUID) != -1)
 	}
 }
 
@@ -344,7 +336,7 @@ func TestFqNameFilter(t *testing.T) {
 	require.Equal(t, totalDevicesExpected, response.Total)
 
 	for _, d := range response.Device {
-		require.True(t, true, contains(expected, d.UUID))
+		require.True(t, true, utils.IndexOf(expected, d.UUID) != -1)
 	}
 }
 
@@ -827,7 +819,7 @@ func setupTestcase(t *testing.T) *echo.Echo {
 	(*cfg).Database.Driver = "sqlite3"
 	(*cfg).Database.Dbname = "test"
 	(*cfg).Server.Schema = os.Getenv("SCHEMA")
-	
+
 	e := echo.New()
 	e.Debug = true
 	_, err := database.Init(cfg)
