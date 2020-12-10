@@ -11,6 +11,7 @@ import (
 
 var config *Configuration
 
+// Configuration for the api server
 type Configuration struct {
 	Server   ServerConfiguration
 	Database DatabaseConfiguration

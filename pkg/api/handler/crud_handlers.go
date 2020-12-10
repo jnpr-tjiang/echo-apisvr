@@ -276,18 +276,17 @@ func buildEntityPayload(db *gorm.DB, entity models.Entity, cfg PayloadCfg) (payl
 			filteredPayload[k] = v
 		}
 		return json.Marshal(filteredPayload)
-	} else {
-		payload := entity.BaseModel().Payload
-		if len(fields) > 0 {
-			payload[len(payload)-1] = ','
-			fieldJSON, err := json.Marshal(fields)
-			if err != nil {
-				return []byte{}, err
-			}
-			payload = append(payload, fieldJSON[1:]...)
-		}
-		return payload, nil
 	}
+	payload = entity.BaseModel().Payload
+	if len(fields) > 0 {
+		payload[len(payload)-1] = ','
+		fieldJSON, err := json.Marshal(fields)
+		if err != nil {
+			return []byte{}, err
+		}
+		payload = append(payload, fieldJSON[1:]...)
+	}
+	return payload, nil
 }
 
 func buildChildrenFields(db *gorm.DB, entity models.Entity, childFieldsToShow []string) (map[string]interface{}, error) {
