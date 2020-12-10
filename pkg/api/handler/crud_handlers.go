@@ -113,9 +113,7 @@ func getPayloadCfg(c echo.Context, entity models.Entity) PayloadCfg {
 			}
 		}
 	} else {
-		if excludeRefs, ok := queryParams["exclude_refs"]; ok && len(excludeRefs) == 1 && excludeRefs[0] == "false" {
-			cfg.ShowRefs = true
-		}
+		cfg.ShowRefs = true // ignore exclude_refs and always retrieve refs if fields is not set
 		if excludeBackRefs, ok := queryParams["exclude_back_refs"]; ok && len(excludeBackRefs) == 1 && excludeBackRefs[0] == "false" {
 			cfg.ShowBackRefs = true
 		}

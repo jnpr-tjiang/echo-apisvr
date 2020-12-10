@@ -75,8 +75,13 @@ func TestBasicCRUD(t *testing.T) {
 	require.JSONEq(t, want, result)
 
 	// device
-	status, deviceID := createObj(t, e, "device", fmt.Sprintf(`{
-		"name": "junos",
+	status, deviceFamilyID := createObj(t, e, "device_family", `{
+		"fq_name": ["default", "juniper", "srx"]
+	}`)
+	require.Equal(t, http.StatusCreated, status)
+	status, deviceID := createObj(t, e, "device", `{
+		"name": "srx-1",
+		"fq_name": ["default", "juniper", "srx-1"],
 		"parent_type": "project",
 		"region": "(510)386-1943",
 		"dic_op_info": {
@@ -84,20 +89,24 @@ func TestBasicCRUD(t *testing.T) {
 			"last_detection_timestamp": 13232233.775
 		},
 		"connection_type": "CSP_INITIATED",
-		"parent_uuid": "%s"
-	}`, projectID))
+		"device_family_refs": [
+			{
+				"to": ["default", "juniper", "srx"]
+			}
+		]
+	}`)
 	require.Equal(t, http.StatusCreated, status)
 	status, result = getObjByID(t, e, "device", deviceID, handler.PayloadCfg{})
 	require.Equal(t, http.StatusOK, status)
 	want = fmt.Sprintf(`{
 			"device": {
-				"name": "junos",
+				"name": "srx-1",
 				"uri": "/device/%s",
 				"uuid": "%s",
 				"fq_name": [
 					"default",
 					"juniper",
-					"junos"
+					"srx-1"
 				],
 				"region": "(510)386-1943",
 				"parent_uri": "/project/%s",
@@ -107,10 +116,18 @@ func TestBasicCRUD(t *testing.T) {
 				},
 				"parent_type": "project",
 				"parent_uuid": "%s",
-				"display_name": "junos",
-				"connection_type": "CSP_INITIATED"
+				"display_name": "srx-1",
+				"connection_type": "CSP_INITIATED",
+				"device_family_refs": [
+					{
+						"to": ["default", "juniper", "srx"],
+						"uuid": "%s",
+						"uri": "/device_family/%s",
+						"attr": null
+					}
+				]	
 			}
-		}`, deviceID, deviceID, projectID, projectID)
+		}`, deviceID, deviceID, projectID, projectID, deviceFamilyID, deviceFamilyID)
 	require.JSONEq(t, want, result)
 
 	// deletion
@@ -350,7 +367,7 @@ func TestFieldSelector(t *testing.T) {
 		"fq_name": ["default", "juniper"], 
 		"display_name": "Juniper Networks"}`)
 	require.Equal(t, http.StatusCreated, status)
-	status, device_familyID := createObj(t, e, "device_family", `{
+	status, deviceFamilyID := createObj(t, e, "device_family", `{
 		"fq_name": ["default", "juniper", "srx"]
 	}`)
 	require.Equal(t, http.StatusCreated, status)
@@ -404,7 +421,7 @@ func TestFieldSelector(t *testing.T) {
 					}
 				]
 			}
-		}`, deviceID, deviceID, projectID, projectID, device_familyID, device_familyID)
+		}`, deviceID, deviceID, projectID, projectID, deviceFamilyID, deviceFamilyID)
 	require.JSONEq(t, want, result)
 
 	// fields selector takes precedence than the exclude_refs=false, which means if
@@ -472,7 +489,44 @@ func TestFieldSelector(t *testing.T) {
 					}
 				]
 			}
-		}`, deviceID, deviceID, projectID, projectID, device_familyID, device_familyID)
+		}`, deviceID, deviceID, projectID, projectID, deviceFamilyID, deviceFamilyID)
+	require.JSONEq(t, want, result)
+
+	// test the case where `exclude_refs` is ignored when fields is not set
+	status, result = getObjByID(t, e, "device", deviceID, handler.PayloadCfg{
+		ShowRefs: false,
+	})
+	require.Equal(t, http.StatusOK, status)
+	want = fmt.Sprintf(`{
+			"device": {
+				"name": "srx-1",
+				"uri": "/device/%s",
+				"uuid": "%s",
+				"fq_name": [
+					"default",
+					"juniper",
+					"srx-1"
+				],
+				"parent_uri": "/project/%s",
+				"parent_type": "project",
+				"parent_uuid": "%s",
+				"display_name": "srx-1",
+				"region": "(510)386-1943",
+				"dic_op_info": {
+					"detected_dic_ip": "10.1.1.2",
+					"last_detection_timestamp": 13232233.775
+				},
+				"connection_type": "CSP_INITIATED",
+				"device_family_refs": [
+					{
+						"to": ["default", "juniper", "srx"],
+						"uuid": "%s",
+						"uri": "/device_family/%s",
+						"attr": null
+					}
+				]
+			}
+		}`, deviceID, deviceID, projectID, projectID, deviceFamilyID, deviceFamilyID)
 	require.JSONEq(t, want, result)
 
 	// ----------------------------------------get all cases---------------------------------------
@@ -506,7 +560,7 @@ func TestFieldSelector(t *testing.T) {
 					"uri": "/device/%s"
 				}
 			]		
-		}`, device_familyID, device_familyID, deviceID, deviceID)
+		}`, deviceFamilyID, deviceFamilyID, deviceID, deviceID)
 	require.JSONEq(t, want, result)
 
 	status, result = getAllObjs(t, e, "device", handler.PayloadCfg{
@@ -546,7 +600,7 @@ func TestFieldSelector(t *testing.T) {
 					]
 				}
 			]		
-		}`, deviceID, deviceID, projectID, projectID, device_familyID, device_familyID)
+		}`, deviceID, deviceID, projectID, projectID, deviceFamilyID, deviceFamilyID)
 	require.JSONEq(t, want, result)
 }
 
@@ -683,11 +737,11 @@ func TestRefCreation(t *testing.T) {
 	_, projectID := createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
 
 	// device family
-	device_familyID := uuid.New().String()
+	deviceFamilyID := uuid.New().String()
 	status, _ := createObj(t, e, "device_family", fmt.Sprintf(`{
 		"uuid": "%s",
 		"name": "mx",
-		"fq_name": ["default", "juniper", "mx"]}`, device_familyID))
+		"fq_name": ["default", "juniper", "mx"]}`, deviceFamilyID))
 	require.Equal(t, http.StatusCreated, status)
 
 	// device with ref
@@ -710,7 +764,7 @@ func TestRefCreation(t *testing.T) {
 					"test": "foo"
 				}
 			}
-		]}`, deviceID, device_familyID))
+		]}`, deviceID, deviceFamilyID))
 	require.Equal(t, http.StatusCreated, status)
 
 	// get device with refs
@@ -744,11 +798,11 @@ func TestRefCreation(t *testing.T) {
 				}
 			]
 		}	
-	}`, deviceID, deviceID, projectID, projectID, device_familyID, device_familyID)
+	}`, deviceID, deviceID, projectID, projectID, deviceFamilyID, deviceFamilyID)
 	require.JSONEq(t, want, result)
 
 	// get device_family with back refs
-	status, result = getObjByID(t, e, "device_family", device_familyID, handler.PayloadCfg{ShowBackRefs: true})
+	status, result = getObjByID(t, e, "device_family", deviceFamilyID, handler.PayloadCfg{ShowBackRefs: true})
 	require.Equal(t, http.StatusOK, status)
 	want = fmt.Sprintf(`{
 		"device_family": {
@@ -771,7 +825,7 @@ func TestRefCreation(t *testing.T) {
 				}
 			]
 		}	
-	}`, device_familyID, device_familyID, projectID, projectID, deviceID, deviceID)
+	}`, deviceFamilyID, deviceFamilyID, projectID, projectID, deviceID, deviceID)
 	require.JSONEq(t, want, result)
 }
 
