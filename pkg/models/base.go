@@ -262,9 +262,17 @@ func PopulateEntity(entity Entity, payload map[string]interface{}) (err error) {
 		for _, v := range fqname.([]interface{}) {
 			s = append(s, v.(string))
 		}
-		fqn := custom.FQName(s)
-		if val, err := custom.FQName(fqn).Value(); err == nil {
-			entity.BaseModel().FQName = val.(string)
+		if len(s) > 0 {
+			name := s[len(s)-1]
+			if entity.BaseModel().Name == "" {
+				entity.BaseModel().Name = name
+			} else if entity.BaseModel().Name != name {
+				return fmt.Errorf("Inconsistent name (%s) and FQName (%v)", entity.BaseModel().Name, fqname)
+			}
+			fqn := custom.FQName(s)
+			if val, err := custom.FQName(fqn).Value(); err == nil {
+				entity.BaseModel().FQName = val.(string)
+			}
 		}
 	}
 	if parentType, ok := payload["parent_type"]; ok {

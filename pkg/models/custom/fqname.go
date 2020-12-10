@@ -42,9 +42,8 @@ func (fqn *FQName) Scan(value interface{}) error {
 func (fqn FQName) Parent() FQName {
 	if len(fqn) <= 1 {
 		return FQName{}
-	} else {
-		return fqn[:(len(fqn) - 1)]
 	}
+	return fqn[:(len(fqn) - 1)]
 }
 
 // ParseParentFQName extract out the parent FQName from a FQName
@@ -56,9 +55,8 @@ func ParseParentFQName(fqnStr string) (string, error) {
 	parentFQN, err := fqn.Parent().Value()
 	if parentFQN == nil {
 		return "", err
-	} else {
-		return parentFQN.(string), err
 	}
+	return parentFQN.(string), err
 }
 
 // ConstructFQName from parent FQName
