@@ -34,6 +34,31 @@ func shutdown() {
 
 }
 
+func TestValidation(t *testing.T) {
+	e := setupTestcase(t)
+	status, domainID := createObj(t, e, "domain", `{"name": "default"`)
+	require.Equal(t, http.StatusInternalServerError, status)
+	require.Contains(t, domainID, "unexpected end of JSON input")
+
+	status, _ = createObj(t, e, "domain", `{"name": "default"}`)
+	require.Equal(t, http.StatusCreated, status)
+	status, _ = createObj(t, e, "project", `{"name": "juniper", "fq_name": ["default", "juniper"], "display_name": "Juniper Networks"}`)
+	require.Equal(t, http.StatusCreated, status)
+	status, deviceID := createObj(t, e, "device", `{
+		"name": "srx-1",
+		"fq_name": ["default", "juniper", "srx-1"],
+		"parent_type": "project",
+		"region": "(510)xxx-1943",
+		"dic_op_info": {
+			"detected_dic_ip": "10.1.1.2",
+			"last_detection_timestamp": 13232233.775
+		},
+		"connection_type": "CSP_INITIATED"
+	}`)
+	require.Equal(t, http.StatusBadRequest, status)
+	require.Contains(t, deviceID, "Does not match pattern")
+}
+
 func TestBasicCRUD(t *testing.T) {
 	e := setupTestcase(t)
 
