@@ -14,3 +14,9 @@ server:
   secret: "password"
   mode: "debug"
   schema: "/Users/tjiang/code/playground/echo-apisvr/schemas/device.json"
+
+amqp:
+  host: localhost
+  port: 5672
+  user: guest
+  pass: guest

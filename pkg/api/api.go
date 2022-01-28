@@ -29,6 +29,7 @@ func Run() {
 
 	// Routes
 	route.AddCRUDRoutes(e)
+	route.AddRPCRoutes(e)
 
 	// Start server
 	e.Logger.Fatal(e.Start(":7920"))

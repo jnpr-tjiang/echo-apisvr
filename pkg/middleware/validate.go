@@ -27,18 +27,26 @@ func JSONSchemaValidator() echo.MiddlewareFunc {
 	}
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
+			var validationErrMsg string
 			buf := new(bytes.Buffer)
-			buf.ReadFrom(c.Request().Body)
-			if len(buf.Bytes()) > 0 {
+			len, err := buf.ReadFrom(c.Request().Body)
+			if err != nil {
+				return err
+			}
+			if len > 0 {
 				var payload interface{}
-				json.Unmarshal(buf.Bytes(), &payload)
+				if err := json.Unmarshal(buf.Bytes(), &payload); err != nil {
+					c.Error(err)
+					c.Set("validationErrors", err.Error())
+					return err
+				}
 				dl := gojsonschema.NewGoLoader(payload)
 				result, err := schema.Validate(dl)
 				if err != nil {
 					c.Error(err)
+					c.Set("validationErrors", err.Error())
 					return err
 				}
-				var validationErrMsg string
 				for _, verr := range result.Errors() {
 					validationErrMsg += verr.String() + "\n"
 				}
