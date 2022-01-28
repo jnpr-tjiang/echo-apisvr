@@ -15,6 +15,7 @@ var config *Configuration
 type Configuration struct {
 	Server   ServerConfiguration
 	Database DatabaseConfiguration
+	Amqp     AmqpConfiguration
 }
 
 // DatabaseConfiguration -
@@ -28,6 +29,14 @@ type DatabaseConfiguration struct {
 	MaxLifetime  int
 	MaxOpenConns int
 	MaxIdleConns int
+}
+
+// AmqpConfiguration to connect to RabbitMQ
+type AmqpConfiguration struct {
+	Host string
+	Port int
+	User string
+	Pass string
 }
 
 // ServerConfiguration -

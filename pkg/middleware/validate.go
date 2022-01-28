@@ -29,8 +29,11 @@ func JSONSchemaValidator() echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			var validationErrMsg string
 			buf := new(bytes.Buffer)
-			buf.ReadFrom(c.Request().Body)
-			if len(buf.Bytes()) > 0 {
+			len, err := buf.ReadFrom(c.Request().Body)
+			if err != nil {
+				return err
+			}
+			if len > 0 {
 				var payload interface{}
 				if err := json.Unmarshal(buf.Bytes(), &payload); err != nil {
 					c.Error(err)
