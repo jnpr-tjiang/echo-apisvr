@@ -1,31 +1,12 @@
-- entity: Base
-  abstract: True
-  schema:
-    type: object
-    description: base class that defines common properties across all entities
-    properties:
-      ID:
-        $ref: root_types.json#/definitions/UuidType
-      Name:
-        type: string
-      DisplayName:
-        type: string
-      FQName:
-        type: string
-
 - entity: Domain
-  extendBase: True
 
 - entity: Project
-  extendBase: True
   parents: [Domain]
 
 - entity: Device_family
-  extendBase: True
   parents: [Project]
         
 - entity: Device
-  extendBase: True
   parents: [Domain, Project]
   relationships: 
     - entity: Device_family

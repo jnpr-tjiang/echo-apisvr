@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-//go:generate go run ../tools/codegen.go ../../schemas/model.yaml
+//go:generate go run ../tools/codegen.go ../../schemas/modelx.yaml model.go
 
 type (
 	// BaseModel - base database entity model

@@ -34,15 +34,16 @@ type normalizedField struct {
 
 type entityInfo struct {
 	Entity           string             `yaml:"entity"`
-	ExtendBase       bool               `yaml:"extendBase"`
-	Abstract         bool               `yaml:"abstract"`
 	Parents          []string           `yaml:"parents"`
 	Relationships    []relationshipInfo `yaml:"relationships"`
 	NormalizedFields []normalizedField  `yaml:"normalize"`
+	MappingEntity    bool               `yaml:"-"`
+	FromEntity       string             `yaml:"-"`
+	ToEntity         string             `yaml:"-"`
 }
 
 func addMoreInfo(entities []entityInfo) []entityInfo {
-	// mappingEntities := []entityInfo{}
+	mappingEntities := []entityInfo{}
 	for i := range entities {
 		entity := &entities[i]
 		for j := range entity.Relationships {
@@ -50,6 +51,13 @@ func addMoreInfo(entities []entityInfo) []entityInfo {
 			relation.FieldName = utils.Pluralize(relation.Entity)
 			if relation.RelationType == "many2many" {
 				relation.MappingTable = strings.ToLower(entity.Entity + "_" + relation.FieldName)
+				mappingEntities = append(mappingEntities, entityInfo{
+					Entity:        entity.Entity + relation.Entity,
+					Parents:       []string{},
+					FromEntity:    entity.Entity,
+					ToEntity:      relation.Entity,
+					MappingEntity: true,
+				})
 			}
 		}
 		for j := range entity.NormalizedFields {
@@ -57,7 +65,13 @@ func addMoreInfo(entities []entityInfo) []entityInfo {
 			field.ColumnName = strings.ToLower(field.Field)
 		}
 	}
-	return entities
+	return append(entities, mappingEntities...)
+}
+
+func die(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func main() {
@@ -65,35 +79,30 @@ func main() {
 	// fmt.Printf("  os.Args = %#v\n", os.Args)
 
 	cwd, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
+	die(err)
 
 	modelFilePath := cwd + "/" + os.Args[1]
 	yamlFile, err := ioutil.ReadFile(modelFilePath)
-	if err != nil {
-		log.Printf("Failed to open file: %s", modelFilePath)
-		panic(err)
-	}
+	die(err)
 
 	entities := []entityInfo{}
 	err = yaml.Unmarshal(yamlFile, &entities)
-	if err != nil {
-		log.Printf("Invalid yaml file: %s", os.Args[1])
-		panic(err)
-	}
-	addMoreInfo(entities)
+	die(err)
 
-	// tmplFilePath := path.Join(cwd, "model.tmpl")
-	tmplFilePath := path.Join(cwd, "../models/model.tmpl")
+	entities = addMoreInfo(entities)
+
+	tmplFilePath := path.Join(cwd, "model.tmpl")
+	// tmplFilePath := path.Join(cwd, "../models/model.tmpl")
 	_, err = os.Stat(tmplFilePath)
-	if err != nil {
-		log.Printf("Template file not found: %s", err)
-		panic(err)
-	}
+	die(err)
+
+	outFilePath := path.Join(cwd, os.Args[2])
+	f, err := os.Create(outFilePath)
+	die(err)
+	defer f.Close()
 
 	tpl := template.Must(template.New(path.Base(tmplFilePath)).ParseFiles(tmplFilePath))
-	err = tpl.Execute(os.Stdout, entities)
+	err = tpl.Execute(f, entities)
 	if err != nil {
 		log.Printf("Failed to resolve template: %s", err)
 	}
