@@ -7,11 +7,11 @@ import (
 )
 
 var constructors map[string]func() interface{} = map[string]func() interface{}{
-	"Domain": func() interface{} { return &Domain{} },
-	"Project": func() interface{} { return &Project{} },
-	"Device_family": func() interface{} { return &Device_family{} },
-	"Device": func() interface{} { return &Device{} },
-	"DeviceDevice_family": func() interface{} { return &DeviceDevice_family{} },
+	"domain": func() interface{} { return &Domain{} },
+	"project": func() interface{} { return &Project{} },
+	"device_family": func() interface{} { return &Device_family{} },
+	"device": func() interface{} { return &Device{} },
+	"devicedevice_family": func() interface{} { return &DeviceDevice_family{} },
 }
 
 // Domain -----------------------------------------------------------------
@@ -37,7 +37,7 @@ func (entity *Domain) BeforeCreate(tx *gorm.DB) error {
 
 // Project -----------------------------------------------------------------
 type Project struct {
-	Base BaseModel `gorm:"embedded" parentTypes:"Domain,"`  
+	Base BaseModel `gorm:"embedded" parentTypes:"domain,"`  
 }
 
 // BaseModel returns the reference to the base model
@@ -58,7 +58,7 @@ func (entity *Project) BeforeCreate(tx *gorm.DB) error {
 
 // Device_family -----------------------------------------------------------------
 type Device_family struct {
-	Base BaseModel `gorm:"embedded" parentTypes:"Project,"`  
+	Base BaseModel `gorm:"embedded" parentTypes:"project,"`  
 }
 
 // BaseModel returns the reference to the base model
@@ -79,7 +79,7 @@ func (entity *Device_family) BeforeCreate(tx *gorm.DB) error {
 
 // Device -----------------------------------------------------------------
 type Device struct {
-	Base BaseModel `gorm:"embedded" parentTypes:"Domain,Project,"` 
+	Base BaseModel `gorm:"embedded" parentTypes:"domain,project,"` 
 
 	// normalized fields
 	Connection_type string `gorm:"column:connection_type"` 

@@ -101,7 +101,12 @@ func main() {
 	die(err)
 	defer f.Close()
 
-	tpl := template.Must(template.New(path.Base(tmplFilePath)).ParseFiles(tmplFilePath))
+	funcMap := template.FuncMap{
+		"ToLower": strings.ToLower,
+	}
+	tmplName := path.Base(tmplFilePath)
+	tpl := template.Must(
+		template.New(tmplName).Funcs(funcMap).ParseFiles(tmplFilePath))
 	err = tpl.Execute(f, entities)
 	if err != nil {
 		log.Printf("Failed to resolve template: %s", err)
