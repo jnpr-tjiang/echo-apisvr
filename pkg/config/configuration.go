@@ -35,6 +35,7 @@ type ServerConfiguration struct {
 	Secret string
 	Mode   string
 	Schema string
+	Model  string
 }
 
 // InitConfig - initialize configuration

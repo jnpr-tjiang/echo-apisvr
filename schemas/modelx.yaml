@@ -1,0 +1,23 @@
+- entity: Domain
+
+- entity: Project
+  parents: [Domain]
+
+- entity: Device_family
+  parents: [Project]
+        
+- entity: Device
+  parents: [Domain, Project]
+  relationships: 
+    - entity: Device_family
+      type: many2many
+  normalize:
+    - field: Connection_type
+      type: string
+      indexed: False
+  schema:
+    type: object
+    properties:
+      Connection_type:
+        $ref: root_types.json#/definitions/UuidType
+        normalize: True

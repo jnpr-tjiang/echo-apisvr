@@ -1,0 +1,62 @@
+- entity: Base
+  abstract: True
+  schema:
+    type: object
+    description: base class that defines common properties across all entities
+    properties:
+      ID:
+        $ref: root_types.json#/definitions/UuidType
+      Name:
+        type: string
+      DisplayName:
+        type: string
+      FQName:
+        type: string
+
+- entity: DataCenter
+  extendBase: True
+  relationships:
+    - entity: Blueprint
+      type: many2one
+  schema:
+    type: object
+    properties:
+      CloudID:
+        $ref: root_types.json#/definitions/UuidType
+      LocationID:
+        $ref: root_types.json#/definitions/UuidType
+
+- entity: Blueprint
+  extendBase: True
+  schema:
+    type: object   
+
+- entity: Server
+  extendBase: True
+  parents: [DataCenter]
+  schema:
+    type: object
+    properties:
+      BMCPortMAC:
+        $ref: root_types.json#/definitions/MacAddressType
+        
+- entity: NetworkElement
+  extendBase: True
+  parents: [DataCenter, Cluster]
+  schema:
+    type: object
+    properties:
+      EMSDeviceID:
+        $ref: root_types.json#/definitions/UuidType
+ 
+- entity: Cluster
+  extendBase: True
+  relationships:
+    - entity: DataCenter
+      type: many2one
+  schema:
+    type: object
+    properties:
+      ProvisionerClusterID:
+        description: OCP Cluster ID in Assisted Installer data model
+        $ref: root_types.json#/definitions/UuidType
