@@ -14,6 +14,8 @@ import (
 	"gorm.io/gorm"
 )
 
+//go:generate go run ../tools/codegen.go ../../schemas/model.yaml
+
 type (
 	// BaseModel - base database entity model
 	BaseModel struct {
@@ -119,7 +121,9 @@ func reflectEntity(entity Entity) (parentTypes []string, refTypes []string, norm
 	if v, ok := baseField.Tag.Lookup("parentTypes"); ok {
 		parentTypes = strings.Split(v, ",")
 		for i := 0; i < len(parentTypes); i++ {
-			if utils.IndexOf(modelNames, parentTypes[i]) < 0 {
+			if parentTypes[i] == "" {
+				parentTypes = parentTypes[:len(parentTypes)-1]
+			} else if utils.IndexOf(modelNames, parentTypes[i]) < 0 {
 				return []string{}, []string{}, []string{}, fmt.Errorf("[%s] Invalid parent type: %s", entityType.Name(), parentTypes[i])
 			}
 		}

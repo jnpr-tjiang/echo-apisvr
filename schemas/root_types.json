@@ -78,6 +78,9 @@
          "type": "string",
          "yang_type": "string"
       },
+      "MacAddressType": {
+         "type": "string"
+      },
       "UriType": {
          "type": "string",
          "yang_type": "string"

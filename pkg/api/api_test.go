@@ -174,8 +174,8 @@ func TestGetAll(t *testing.T) {
 			}
 		]
 	}`, id1, id1, id2, id2)
-	t.Logf("want:\n%s\n", want)
-	t.Logf("actual:\n%s\n", result)
+	// t.Logf("want:\n%s\n", want)
+	// t.Logf("actual:\n%s\n", result)
 	require.JSONEq(t, want, result)
 }
 
